@@ -1,0 +1,90 @@
+/* 1. CSS Variables (Theming Engine) */
+:root {
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --text: #212529;
+    --text-muted: #6c757d;
+    --primary: #0d6efd;
+    --primary-hover: #0b5ed7;
+    --border: #dee2e6;
+    --radius: 8px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --font: system-ui, -apple-system, sans-serif;
+    --max-width: 900px;
+}
+
+/* 2. Reset & Base Styles */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 3. Layout Components */
+.container {
+    width: 90%;
+    max-width: var(--max-width);
+    margin: 2rem auto;
+    flex: 1;
+}
+
+.app-header, .app-footer {
+    background: var(--surface);
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow);
+}
+
+.app-header nav a {
+    margin-left: 1rem;
+    text-decoration: none;
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.app-footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* 4. Utility Classes */
+.hidden { display: none !important; }
+.card {
+    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 1rem;
+}
+.btn {
+    display: inline-block;
+    padding: 0.6rem 1.2rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 1rem;
+}
+.btn:hover { background: var(--primary-hover); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+input, textarea {
+    width: 100%;
+    padding: 0.7rem;
+    margin: 0.5rem 0 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: inherit;
+}
