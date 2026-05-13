@@ -101,7 +101,7 @@ function renderList({ id }) {
         <div class="card">
             <h2>Wishlist #${id}</h2>
             <p>Items will appear here. (Chapter 4 will fetch from DB)</p>
-            <a href="#/" class="btn">← Back</a>
+            <a href="/app#/" class="btn">← Back</a>
         </div>
     `;
 }
@@ -111,13 +111,13 @@ function renderPublic({ token }) {
         <div class="card">
             <h2>Public List</h2>
             <p>Token: ${token}</p>
-            <a href="#/" class="btn">← Back</a>
+            <a href="/app#/" class="btn">← Back</a>
         </div>
     `;
 }
 
 function renderNotFound() {
-    APP.innerHTML = `<div class="card"><h2>404: Page not found</h2><a href="#/">Home</a></div>`;
+    APP.innerHTML = `<div class="card"><h2>404: Page not found</h2><a href="/app#/">Home</a></div>`;
 }
 
 function renderError(msg) {

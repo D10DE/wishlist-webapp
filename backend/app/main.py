@@ -33,7 +33,7 @@ app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 # Optional: serve frontend
 frontend_dir = BASE_DIR / "frontend"
 if frontend_dir.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+    app.mount("/app", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 
 @app.get("/")
 async def root():
