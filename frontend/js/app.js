@@ -86,12 +86,12 @@ function renderCreate() {
         const title = document.getElementById("title").value;
         const desc = document.getElementById("desc").value;
         try {
-            const data = await apiFetch("/lists", {
+            const data = await apiFetch("/wishlists", {
                 method: "POST",
                 body: JSON.stringify({ title, description: desc })
             });
             alert("List created! ID: " + data.id);
-            location.hash = `#/list/${data.id}`;
+            location.hash = `#/wishlists/${data.id}`;
         } catch (err) { /* handled */ }
     });
 }
