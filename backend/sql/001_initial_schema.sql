@@ -1,13 +1,15 @@
 -- ============================================================
--- 1. Enable required extension (must be superuser or owner)
+-- 1. Enable pgcrypto (as superuser if not already done)
 -- ============================================================
+-- If you are connected as wishlist_user and this fails,
+-- disconnect, run it as postgres, then reconnect.
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================================
--- 2. Users table
+-- 2. Users table (UUID primary key)
 -- ============================================================
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20) UNIQUE,
     username VARCHAR(100),
@@ -16,13 +18,22 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Seed dummy user with a fixed UUID for easy testing
+INSERT INTO users (id, email, phone, username, hashed_password)
+VALUES (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    'test@example.com',
+    '+1234567890',
+    'TestUser',
+    'dummy_hashed_pw'
+);
+
 -- ============================================================
--- 3. Wishlists
+-- 3. Wishlists (UUID, no separate public_id)
 -- ============================================================
 CREATE TABLE wishlists (
-    id SERIAL PRIMARY KEY,
-    public_id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
-    owner_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(200) DEFAULT 'My Wishlist',
     description TEXT,
     is_public BOOLEAN DEFAULT FALSE,
@@ -31,22 +42,22 @@ CREATE TABLE wishlists (
 );
 
 -- ============================================================
--- 4. Categories
+-- 4. Categories (UUID, owner is UUID)
 -- ============================================================
 CREATE TABLE categories (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    owner_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(name, owner_id)   -- each user can have unique category names
+    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(name, owner_id)
 );
 
 -- ============================================================
--- 5. Items (with category_id and shops JSONB)
+-- 5. Items (UUID, references UUIDs)
 -- ============================================================
 CREATE TABLE items (
-    id SERIAL PRIMARY KEY,
-    wishlist_id INT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
-    category_id INT REFERENCES categories(id) ON DELETE SET NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wishlist_id UUID NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     name VARCHAR(200) NOT NULL,
     description TEXT,
     price DECIMAL(10,2),
@@ -61,13 +72,13 @@ CREATE TABLE items (
 );
 
 -- ============================================================
--- 6. Bookings
+-- 6. Bookings (UUID references)
 -- ============================================================
 CREATE TABLE bookings (
-    id SERIAL PRIMARY KEY,
-    wishlist_id INT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
-    item_id INT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    gifter_user_id INT NOT NULL REFERENCES users(id),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wishlist_id UUID NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+    item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    gifter_user_id UUID NOT NULL REFERENCES users(id),
     quantity INT DEFAULT 1,
     is_anonymous BOOLEAN DEFAULT TRUE,
     message TEXT,
@@ -76,10 +87,10 @@ CREATE TABLE bookings (
 );
 
 -- ============================================================
--- 7. Share settings (1:1 with wishlist)
+-- 7. Share settings (wishlist_id is UUID PK, also FK)
 -- ============================================================
 CREATE TABLE share_settings (
-    wishlist_id INT PRIMARY KEY REFERENCES wishlists(id) ON DELETE CASCADE,
+    wishlist_id UUID PRIMARY KEY REFERENCES wishlists(id) ON DELETE CASCADE,
     show_booked_details BOOLEAN DEFAULT TRUE,
     restrict_to_contacts BOOLEAN DEFAULT FALSE,
     max_items_per_gifter INT,
@@ -89,7 +100,7 @@ CREATE TABLE share_settings (
 );
 
 -- ============================================================
--- 8. Updated_at triggers for wishlists and share_settings
+-- 8. Updated_at triggers
 -- ============================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -130,9 +141,3 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_bookings_quantity
     AFTER INSERT OR DELETE OR UPDATE OF quantity ON bookings
     FOR EACH ROW EXECUTE FUNCTION update_quantity_booked();
-
--- ============================================================
--- 10. Seed a dummy user for development
--- ============================================================
-INSERT INTO users (email, phone, username, hashed_password)
-VALUES ('test@example.com', '+1234567890', 'TestUser', 'dummy_hashed_pw');
