@@ -59,12 +59,24 @@ body { font-family: sans-serif; background: #f4f6f9; color: #333; }
 
 /* ========== FORMS ========== */
 .form-group { margin-bottom: 15px; }
-.form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+.form-group label {
+    display: flex;               /* align checkbox and text horizontally */
+    align-items: center;         /* vertical centering */
+    font-weight: bold;
+    gap: 6px;
+}
 .form-group input, .form-group textarea, .form-group select {
     width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px;
 }
+.form-group input[type="checkbox"],
+.form-group input[type="radio"] {
+    width: auto;
+}
 .form-row { display: flex; gap: 10px; }
 .form-row .form-group { flex: 1; }
+.form-row.stack {
+    flex-direction: column;
+}
 
 /* ========== SHARE LINK BOX ========== */
 .share-link {

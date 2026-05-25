@@ -88,7 +88,7 @@ async function selectWishlist(id) {
         <div class="card">
             <h3>Share Settings</h3>
             <form id="share-settings-form">
-                <div class="form-row">
+                <div class="form-row stack">
                     <div class="form-group">
                         <label><input type="checkbox" name="show_booked_details" ${share.show_booked_details ? 'checked' : ''}> Show booked details</label>
                     </div>
