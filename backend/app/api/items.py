@@ -13,7 +13,6 @@ from uuid import UUID
 router = APIRouter(prefix="/api/wishlists/{wishlist_id}/items", tags=["items"])
 DUMMY_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
-# Base upload directory (should match main.py mount)
 UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "items"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 

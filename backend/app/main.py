@@ -17,8 +17,6 @@ async def lifespan(app: FastAPI):
     print("🔌 Database pool closed")
 
 app = FastAPI(title="Wishlist WebApp", version="0.1.0", lifespan=lifespan)
-app.include_router(public.router)
-app.include_router(gifter.router)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -41,6 +39,8 @@ app.include_router(wishlists.router)
 app.include_router(categories.router)
 app.include_router(items.router)
 app.include_router(share_settings.router)
+app.include_router(public.router)
+app.include_router(gifter.router)
 
 @app.get("/")
 async def root():

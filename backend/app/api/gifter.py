@@ -8,10 +8,8 @@ from datetime import datetime
 
 router = APIRouter(prefix="/api/wishlists/{wishlist_id}/bookings", tags=["gifter"])
 
-# For now, gifter user is hardcoded. In real app it comes from authentication.
 DUMMY_GIFTER_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
-# ---------- Request model ----------
 class BookingRequest(BaseModel):
     item_id: UUID
     is_anonymous: bool = True
@@ -26,7 +24,6 @@ class BookingOut(BaseModel):
     message: Optional[str]
     booked_at: datetime
 
-# ---------- Helper ----------
 def _row_to_booking(row) -> dict:
     return {
         "id": str(row["id"]),
@@ -46,7 +43,7 @@ async def book_item(wishlist_id: UUID, data: BookingRequest, gifter_id: UUID = N
     """
     gifter = str(gifter_id) if gifter_id else DUMMY_GIFTER_ID
 
-     # Check wishlist exists
+    # Check wishlist exists
     wishlist = await fetch_one("SELECT id FROM wishlists WHERE id = $1", wishlist_id)
     if not wishlist:
         raise HTTPException(status_code=404, detail="Wishlist not found")
