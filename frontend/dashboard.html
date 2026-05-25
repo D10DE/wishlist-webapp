@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wishlist Dashboard</title>
+    <link rel="stylesheet" href="/app/css/dashboard.css">
+</head>
+<body>
+<div class="app">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h2>📋 My Wishlists</h2>
+        <ul id="wishlist-list"></ul>
+        <button class="btn-new" onclick="createWishlist()">+ New Wishlist</button>
+        <p class="user-hint">Logged in as TestUser</p>
+    </div>
+
+    <!-- Main content -->
+    <div class="main" id="main-content">
+        <div class="card">
+            <h3>Welcome!</h3>
+            <p>Select a wishlist from the left or create a new one.</p>
+        </div>
+    </div>
+</div>
+
+<!-- MODALS (hidden) -->
+<div class="modal" id="wishlist-modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('wishlist-modal')">&times;</span>
+        <h3 id="wishlist-modal-title">Create Wishlist</h3>
+        <form id="wishlist-form">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" name="title" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="is_public"> Public</label>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="item-modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('item-modal')">&times;</span>
+        <h3 id="item-modal-title">Add Item</h3>
+        <form id="item-form" enctype="multipart/form-data">
+            <input type="hidden" name="item_id" id="edit-item-id">
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" name="name" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" rows="2"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Price</label>
+                    <input type="number" step="0.01" name="price">
+                </div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <input type="text" name="currency" value="USD" maxlength="3">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Desired date</label>
+                <input type="date" name="desired_date">
+            </div>
+            <div class="form-group">
+                <label>Comment</label>
+                <textarea name="comment" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Shops (JSON format: [{"name":"Shop", "url":"http..."}])</label>
+                <input type="text" name="shops" placeholder='[{"name":"Amazon","url":"https://..."}]'>
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category_id" id="item-category-select">
+                    <option value="">-- None --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Image</label>
+                <input type="file" name="image" accept="image/*">
+            </div>
+            <button type="submit" class="btn btn-success">Save Item</button>
+        </form>
+    </div>
+</div>
+
+<script src="/app/js/dashboard.js" defer></script>
+</body>
+</html>

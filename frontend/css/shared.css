@@ -1,0 +1,60 @@
+body {
+    font-family: sans-serif;
+    max-width: 650px;
+    margin: auto;
+    padding: 20px;
+    background: #fafafa;
+    color: #222;
+}
+#gifter-area {
+    background: #eef;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+#gifter-area input {
+    width: 320px;
+    padding: 5px;
+}
+.item {
+    border: 1px solid #ccc;
+    background: white;
+    margin: 15px 0;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.item.booked {
+    opacity: 0.65;
+    background: #f0f0f0;
+}
+.item img {
+    max-width: 120px;
+    max-height: 120px;
+    display: block;
+    margin: 8px 0;
+}
+button {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+button:hover {
+    background: #45a049;
+}
+button.cancel {
+    background: #f44336;
+}
+button.cancel:hover {
+    background: #d32f2f;
+}
+.status {
+    font-weight: bold;
+    color: #888;
+}
+.error {
+    color: red;
+}
