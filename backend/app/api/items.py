@@ -4,6 +4,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, status
 from typing import Optional, List
 from pathlib import Path
+from datetime import date, datetime
 
 from app.db import fetch_one, fetch_all, execute
 from app.models import ItemCreate, ItemUpdate, ItemOut, ShopEntry
@@ -32,7 +33,7 @@ async def create_item(
     description: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
     currency: str = Form("USD"),
-    desired_date: Optional[str] = Form(None),   # "YYYY-MM-DD"
+    desired_date: Optional[date] = Form(None),   # "YYYY-MM-DD"
     comment: Optional[str] = Form(None),
     category_id: Optional[UUID] = Form(None),
     shops: Optional[str] = Form(None),          # JSON string of list of ShopEntry
@@ -110,7 +111,7 @@ async def update_item(
     description: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
     currency: Optional[str] = Form(None),
-    desired_date: Optional[str] = Form(None),
+    desired_date: Optional[date] = Form(None),
     comment: Optional[str] = Form(None),
     category_id: Optional[UUID] = Form(None),
     shops: Optional[str] = Form(None),
