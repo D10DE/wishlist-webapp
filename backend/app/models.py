@@ -88,3 +88,19 @@ class ItemOut(BaseModel):
     comment: Optional[str]
     shops: Optional[List[ShopEntry]]
     created_at: datetime
+
+# Auth models
+class UserRegister(BaseModel):
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=6)
+    phone: Optional[str] = Field(None, max_length=20)
+    username: Optional[str] = Field(None, max_length=100)
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict   # we'll return user id, email, etc.

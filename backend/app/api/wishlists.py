@@ -1,14 +1,12 @@
 # backend/app/api/wishlists.py
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from app.db import fetch_one, fetch_all, execute
 from app.models import WishlistCreate, WishlistUpdate, WishlistOut
 from typing import List
 from uuid import UUID
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/api/wishlists", tags=["wishlists"])
-
-# Dummy user – will be replaced by authenticated user ID later
-DUMMY_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
 def _row_to_dict(row) -> dict:
     return {
@@ -22,59 +20,50 @@ def _row_to_dict(row) -> dict:
     }
 
 @router.post("/", response_model=WishlistOut, status_code=status.HTTP_201_CREATED)
-async def create_wishlist(data: WishlistCreate):
+async def create_wishlist(data: WishlistCreate, current_user: dict = Depends(get_current_user)):
     """Create a new wishlist and its associated share_settings."""
-    # 1. Insert wishlist, get its public UUID
+    
     row = await fetch_one(
-        """
-        INSERT INTO wishlists (owner_id, title, description, is_public)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, owner_id, title, description, is_public,
-                  created_at, updated_at
-        """,
-        DUMMY_USER_ID, data.title, data.description, data.is_public
+        """INSERT INTO wishlists (owner_id, title, description, is_public)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, owner_id, title, description, is_public, created_at, updated_at""",
+        current_user["id"], data.title, data.description, data.is_public
     )
-
-    # 2. Create the default share_settings row (all defaults)
-    await execute(
-        "INSERT INTO share_settings (wishlist_id) VALUES ($1)",
-        row["id"]
-    )
+    
+    await execute("INSERT INTO share_settings (wishlist_id) VALUES ($1)", row["id"])
 
     return _row_to_dict(row)
 
 @router.get("/", response_model=List[WishlistOut])
-async def list_my_wishlists():
+async def list_my_wishlists(current_user: dict = Depends(get_current_user)):
     """Return all wishlists belonging to the dummy user."""
     rows = await fetch_all(
-        """SELECT id, owner_id, title, description, is_public,
-                  created_at, updated_at
-           FROM wishlists
-           WHERE owner_id = $1
-           ORDER BY created_at DESC""",
-        DUMMY_USER_ID
+        """SELECT id, owner_id, title, description, is_public, created_at, updated_at
+           FROM wishlists WHERE owner_id = $1 ORDER BY created_at DESC""",
+        current_user["id"]
     )
-    return [
-        _row_to_dict(r)
-        for r in rows
-    ]
+    return [_row_to_dict(r) for r in rows]
 
 @router.get("/{wishlist_id}", response_model=WishlistOut)
-async def get_wishlist(wishlist_id: UUID):
-    """Get a single wishlist by its id (only if owned by dummy user)."""
+async def get_wishlist(
+    wishlist_id: UUID,
+    current_user: dict = Depends(get_current_user)
+):
     row = await fetch_one(
-        """SELECT id, owner_id, title, description, is_public,
-                  created_at, updated_at
-           FROM wishlists
-           WHERE id = $1 AND owner_id = $2""",
-        str(wishlist_id), DUMMY_USER_ID
+        """SELECT id, owner_id, title, description, is_public, created_at, updated_at
+           FROM wishlists WHERE id = $1 AND owner_id = $2""",
+        wishlist_id, current_user["id"]
     )
     if not row:
         raise HTTPException(status_code=404, detail="Wishlist not found")
     return _row_to_dict(row)
 
 @router.put("/{wishlist_id}", response_model=WishlistOut)
-async def update_wishlist(wishlist_id: UUID, data: WishlistUpdate):
+async def update_wishlist(
+    wishlist_id: UUID,
+    data: WishlistUpdate,
+    current_user: dict = Depends(get_current_user)
+):
     """Update wishlist fields (partial update)."""
     # Build dynamic SET clause
     fields = []
@@ -91,15 +80,12 @@ async def update_wishlist(wishlist_id: UUID, data: WishlistUpdate):
     if not fields:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
-    values.append(str(wishlist_id))
-    values.append(DUMMY_USER_ID)
-
+    values.append(wishlist_id)
+    values.append(current_user["id"])
     query = f"""
-        UPDATE wishlists
-        SET {', '.join(fields)}
+        UPDATE wishlists SET {', '.join(fields)}
         WHERE id = ${idx} AND owner_id = ${idx+1}
-        RETURNING id, owner_id, title, description, is_public,
-                  created_at, updated_at
+        RETURNING id, owner_id, title, description, is_public, created_at, updated_at
     """
     row = await fetch_one(query, *values)
     if not row:
@@ -107,11 +93,13 @@ async def update_wishlist(wishlist_id: UUID, data: WishlistUpdate):
     return _row_to_dict(row)
 
 @router.delete("/{wishlist_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_wishlist(wishlist_id: UUID):
-    """Delete a wishlist (cascade will delete items, bookings, share_settings)."""
+async def delete_wishlist(
+    wishlist_id: UUID,
+    current_user: dict = Depends(get_current_user)
+):
     result = await execute(
         "DELETE FROM wishlists WHERE id = $1 AND owner_id = $2",
-        str(wishlist_id), DUMMY_USER_ID
+        wishlist_id, current_user["id"]
     )
     # execute() returns the command tag string, like "DELETE 1"
     if "0" in result:   # Simple check, could parse, but we’ll trust the tag

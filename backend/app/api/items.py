@@ -1,30 +1,22 @@
 # backend/app/api/items.py
 import os
 import uuid
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, status, Depends
 from typing import Optional, List
 from pathlib import Path
 from datetime import date, datetime
 
 from app.db import fetch_one, fetch_all, execute
 from app.models import ItemCreate, ItemUpdate, ItemOut, ShopEntry
+from app.auth import get_current_user
+from app.dependencies import get_wishlist_owner
 import json
 from uuid import UUID
 
 router = APIRouter(prefix="/api/wishlists/{wishlist_id}/items", tags=["items"])
-DUMMY_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "items"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
-async def _verify_wishlist_owner(wishlist_id: UUID):
-    row = await fetch_one(
-        "SELECT owner_id FROM wishlists WHERE id = $1", str(wishlist_id)
-    )
-    if not row:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    if str(row["owner_id"]) != DUMMY_USER_ID:
-        raise HTTPException(status_code=403, detail="Not your wishlist")
 
 @router.post("/", response_model=ItemOut, status_code=status.HTTP_201_CREATED)
 async def create_item(
@@ -33,13 +25,14 @@ async def create_item(
     description: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
     currency: str = Form("USD"),
-    desired_date: Optional[date] = Form(None),   # "YYYY-MM-DD"
+    desired_date: Optional[date] = Form(None),
     comment: Optional[str] = Form(None),
     category_id: Optional[UUID] = Form(None),
-    shops: Optional[str] = Form(None),          # JSON string of list of ShopEntry
-    image: Optional[UploadFile] = File(None)
+    shops: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+    current_user: dict = Depends(get_current_user),
+    owner_id: str = Depends(get_wishlist_owner) 
 ):
-    await _verify_wishlist_owner(wishlist_id)
 
     # Handle image upload
     image_filename = None
@@ -65,7 +58,7 @@ async def create_item(
     if category_id:
         cat = await fetch_one(
             "SELECT id FROM categories WHERE id = $1 AND owner_id = $2",
-            category_id, DUMMY_USER_ID
+            category_id, current_user["id"]
         )
         if not cat:
             raise HTTPException(status_code=400, detail="Category not found or not yours")
@@ -84,8 +77,11 @@ async def create_item(
     return _item_out(row)
 
 @router.get("/", response_model=List[ItemOut])
-async def list_items(wishlist_id: UUID):
-    await _verify_wishlist_owner(wishlist_id)
+async def list_items(
+    wishlist_id: UUID, 
+    current_user: dict = Depends(get_current_user),
+    owner_id: str = Depends(get_wishlist_owner) 
+):
     rows = await fetch_all(
         "SELECT * FROM items WHERE wishlist_id = $1 ORDER BY created_at",
         wishlist_id
@@ -93,8 +89,12 @@ async def list_items(wishlist_id: UUID):
     return [_item_out(r) for r in rows]
 
 @router.get("/{item_id}", response_model=ItemOut)
-async def get_item(wishlist_id: UUID, item_id: UUID):
-    await _verify_wishlist_owner(wishlist_id)
+async def get_item(
+    wishlist_id: UUID, 
+    item_id: UUID, 
+    current_user: dict = Depends(get_current_user),
+    owner_id: str = Depends(get_wishlist_owner) 
+):
     row = await fetch_one(
         "SELECT * FROM items WHERE id = $1 AND wishlist_id = $2",
         item_id, wishlist_id
@@ -115,9 +115,10 @@ async def update_item(
     comment: Optional[str] = Form(None),
     category_id: Optional[UUID] = Form(None),
     shops: Optional[str] = Form(None),
-    image: Optional[UploadFile] = File(None)
+    image: Optional[UploadFile] = File(None),
+    current_user: dict = Depends(get_current_user),
+    owner_id: str = Depends(get_wishlist_owner) 
 ):
-    await _verify_wishlist_owner(wishlist_id)
 
     # Verify item exists and belongs to wishlist
     existing = await fetch_one(
@@ -156,7 +157,7 @@ async def update_item(
         if category_id != existing["category_id"]:
             cat = await fetch_one(
                 "SELECT id FROM categories WHERE id = $1 AND owner_id = $2",
-                category_id, DUMMY_USER_ID
+                category_id, current_user["id"]
             )
             if not cat:
                 raise HTTPException(status_code=400, detail="Category not found or not yours")
@@ -183,8 +184,12 @@ async def update_item(
     return _item_out(row)
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(wishlist_id: UUID, item_id: UUID):
-    await _verify_wishlist_owner(wishlist_id)
+async def delete_item(
+    wishlist_id: UUID, 
+    item_id: UUID, 
+    current_user: dict = Depends(get_current_user),
+    owner_id: str = Depends(get_wishlist_owner) 
+):
     # Check if item has bookings
     booked = await fetch_one(
         "SELECT COUNT(*) as cnt FROM bookings WHERE item_id = $1",

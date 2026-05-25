@@ -1,14 +1,13 @@
 # backend/app/api/gifter.py
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field, conint
 from typing import Optional, List
 from uuid import UUID
 from app.db import fetch_one, fetch_all, execute
 from datetime import datetime
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/api/wishlists/{wishlist_id}/bookings", tags=["gifter"])
-
-DUMMY_GIFTER_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 class BookingRequest(BaseModel):
     item_id: UUID
@@ -36,12 +35,16 @@ def _row_to_booking(row) -> dict:
     }
 
 @router.post("/", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
-async def book_item(wishlist_id: UUID, data: BookingRequest, gifter_id: UUID = None):
+async def book_item(
+    wishlist_id: UUID,
+    data: BookingRequest,
+    current_user: dict = Depends(get_current_user)
+):
     """
     Book an item for a gifter. If gifter_id is not provided, use dummy gifter.
     In a real app, gifter_id comes from auth.
     """
-    gifter = str(gifter_id) if gifter_id else DUMMY_GIFTER_ID
+    gifter = current_user["id"]
 
     # Check wishlist exists
     wishlist = await fetch_one("SELECT id FROM wishlists WHERE id = $1", wishlist_id)
@@ -87,8 +90,11 @@ async def book_item(wishlist_id: UUID, data: BookingRequest, gifter_id: UUID = N
     return _row_to_booking(row)
 
 @router.get("/mine", response_model=List[BookingOut])
-async def list_my_bookings(wishlist_id: UUID, gifter_id: UUID = None):
-    gifter = str(gifter_id) if gifter_id else DUMMY_GIFTER_ID
+async def list_my_bookings(
+    wishlist_id: UUID,
+    current_user: dict = Depends(get_current_user)
+):
+    gifter = current_user["id"]
     rows = await fetch_all(
         "SELECT * FROM bookings WHERE wishlist_id = $1 AND gifter_user_id = $2",
         wishlist_id, gifter
@@ -96,8 +102,12 @@ async def list_my_bookings(wishlist_id: UUID, gifter_id: UUID = None):
     return [_row_to_booking(r) for r in rows]
 
 @router.delete("/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_booking(wishlist_id: UUID, booking_id: UUID, gifter_id: UUID = None):
-    gifter = str(gifter_id) if gifter_id else DUMMY_GIFTER_ID
+async def cancel_booking(
+    wishlist_id: UUID,
+    booking_id: UUID,
+    current_user: dict = Depends(get_current_user)
+):
+    gifter = current_user["id"]
     result = await execute(
         "DELETE FROM bookings WHERE id = $1 AND wishlist_id = $2 AND gifter_user_id = $3",
         booking_id, wishlist_id, gifter

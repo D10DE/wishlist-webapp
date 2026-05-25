@@ -1,22 +1,23 @@
 # backend/app/api/public.py
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from app.db import fetch_one, fetch_all
 from typing import Optional
 from uuid import UUID
+from app.auth import get_optional_user
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
 @router.get("/wishlists/{wishlist_id}")
 async def view_public_wishlist(
     wishlist_id: UUID,
-    gifter_id: Optional[str] = Query(None)
+    current_user: dict = Depends(get_optional_user)
 ):
     """
     Public read‑only view of a shared wishlist.
     Respects share_settings: hides booked details if surprise mode,
     enforces anonymity, and optionally shows the gifter's own bookings.
     """
-
+    gifter_id = current_user["id"] if current_user else None
     # 1. Fetch wishlist (must exist)
     wishlist = await fetch_one(
         "SELECT id, title, description FROM wishlists WHERE id = $1",

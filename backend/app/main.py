@@ -4,9 +4,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 from app.db import init_db_pool, close_db_pool, fetch_one
-from app.api import wishlists, categories, items, share_settings
-from app.api import public
-from app.api import gifter
+from app.api import wishlists, categories, items, share_settings, public, gifter, auth
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,6 +39,7 @@ app.include_router(items.router)
 app.include_router(share_settings.router)
 app.include_router(public.router)
 app.include_router(gifter.router)
+app.include_router(auth.router)
 
 @app.get("/")
 async def root():

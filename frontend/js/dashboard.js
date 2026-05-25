@@ -1,5 +1,23 @@
 // ====================== CONFIGURATION ======================
-const DUMMY_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const token = localStorage.getItem('token');
+if (!token) {
+    window.location.href = '/app/login.html';
+}
+
+// Wrapper for fetch that includes the Authorization header
+async function authFetch(url, options = {}) {
+    const headers = options.headers || {};
+    headers['Authorization'] = `Bearer ${token}`;
+    return fetch(url, { ...options, headers });
+}
+
+// Show the real user
+const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+const userDisplay = document.getElementById('user-display');
+if (userDisplay) {
+    userDisplay.textContent = `Logged in as ${storedUser.email || storedUser.username || 'Unknown'}`;
+}
+
 let currentWishlistId = null;
 let categories = [];
 
@@ -7,13 +25,24 @@ let categories = [];
 async function init() {
     await loadWishlists();
     const lastId = localStorage.getItem('lastWishlistId');
-    if (lastId) selectWishlist(lastId);
+    if (lastId) {
+        // Check if this wishlist still exists in the loaded list
+        const listItems = document.querySelectorAll('#wishlist-list li');
+        const exists = Array.from(listItems).some(li => li.dataset.id === lastId);
+        if (exists) {
+            selectWishlist(lastId);
+        } else {
+            // The stored wishlist doesn't belong to this user (or was deleted)
+            localStorage.removeItem('lastWishlistId');
+            // Show default welcome (already there if nothing selected)
+        }
+    }
 }
 init();
 
 // ====================== WISHLISTS ======================
 async function loadWishlists() {
-    const res = await fetch('/api/wishlists/');
+    const res = await authFetch('/api/wishlists/');
     const lists = await res.json();
     const ul = document.getElementById('wishlist-list');
     ul.innerHTML = '';
@@ -38,7 +67,7 @@ async function createWishlist() {
             description: form.description.value,
             is_public: form.is_public.checked
         };
-        const res = await fetch('/api/wishlists/', {
+        const res = await authFetch('/api/wishlists/', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -65,8 +94,8 @@ async function selectWishlist(id) {
 
     // Fetch details
     const [wlRes, shareRes] = await Promise.all([
-        fetch(`/api/wishlists/${id}`),
-        fetch(`/api/wishlists/${id}/share-settings`)
+        authFetch(`/api/wishlists/${id}`),
+        authFetch(`/api/wishlists/${id}/share-settings/`)
     ]);
     const wishlist = await wlRes.json();
     const share = await shareRes.json();
@@ -127,7 +156,7 @@ async function selectWishlist(id) {
             max_items_per_gifter: form.max_items_per_gifter.value ? parseInt(form.max_items_per_gifter.value) : null,
             custom_message: form.custom_message.value || null
         };
-        const res = await fetch(`/api/wishlists/${id}/share-settings`, {
+        const res = await authFetch(`/api/wishlists/${id}/share-settings/`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -145,7 +174,7 @@ async function editWishlist(id) {
     if (newTitle === null) return;
     const newDesc = prompt('New description:');
     if (newDesc === null) return;
-    const res = await fetch(`/api/wishlists/${id}`, {
+    const res = await authFetch(`/api/wishlists/${id}/`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ title: newTitle, description: newDesc })
@@ -158,7 +187,7 @@ async function editWishlist(id) {
 
 async function deleteWishlist(id) {
     if (!confirm('Delete this wishlist and all items?')) return;
-    await fetch(`/api/wishlists/${id}`, { method: 'DELETE' });
+    await authFetch(`/api/wishlists/${id}`, { method: 'DELETE' });
     currentWishlistId = null;
     document.getElementById('main-content').innerHTML = '<div class="card"><h3>Wishlist deleted</h3></div>';
     loadWishlists();
@@ -166,7 +195,7 @@ async function deleteWishlist(id) {
 
 // ====================== ITEMS ======================
 async function loadItems(wishlistId) {
-    const res = await fetch(`/api/wishlists/${wishlistId}/items`);
+    const res = await authFetch(`/api/wishlists/${wishlistId}/items/`);
     const items = await res.json();
     const container = document.getElementById('items-container');
     if (!items.length) {
@@ -202,7 +231,7 @@ async function openAddItemModal() {
 }
 
 async function editItem(itemId) {
-    const res = await fetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`);
+    const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}/`);
     const item = await res.json();
     document.getElementById('item-modal-title').textContent = 'Edit Item';
     const form = document.getElementById('item-form');
@@ -247,7 +276,7 @@ document.getElementById('item-form').addEventListener('submit', async function(e
         method = 'PUT';
     }
 
-    const res = await fetch(url, { method, body: formData });
+    const res = await authFetch(url, { method, body: formData });
     if (res.ok) {
         closeModal('item-modal');
         loadItems(currentWishlistId);
@@ -259,14 +288,14 @@ document.getElementById('item-form').addEventListener('submit', async function(e
 
 async function deleteItem(itemId) {
     if (!confirm('Delete this item?')) return;
-    const res = await fetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}/`, { method: 'DELETE' });
     if (res.ok) loadItems(currentWishlistId);
     else alert('Delete failed');
 }
 
 // ====================== CATEGORIES ======================
 async function loadCategories() {
-    const res = await fetch('/api/categories/');
+    const res = await authFetch('/api/categories/');
     categories = await res.json();
     const container = document.getElementById('categories-container');
     if (!container) return;
@@ -282,7 +311,7 @@ async function loadCategories() {
 async function openAddCategoryModal() {
     const name = prompt('Category name:');
     if (!name) return;
-    const res = await fetch('/api/categories/', {
+    const res = await authFetch('/api/categories/', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ name })
@@ -303,7 +332,7 @@ async function openAddCategoryModal() {
 
 async function deleteCategory(catId) {
     if (!confirm('Delete this category? Items will lose their category.')) return;
-    const res = await fetch(`/api/categories/${catId}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/categories/${catId}`, { method: 'DELETE' });
     if (res.ok) loadCategories();
     else alert('Delete failed');
 }
@@ -334,3 +363,10 @@ function copyShareLink() {
     document.execCommand('copy');
     alert('Link copied!');
 }
+//===
+document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('lastWishlistId');
+    window.location.href = '/app/login.html';
+});

@@ -1,20 +1,13 @@
 # backend/app/api/share_settings.py
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.db import fetch_one, execute
 from app.models import ShareSettingsUpdate, ShareSettingsOut
 from uuid import UUID
-
+from app.auth import get_current_user
+from app.dependencies import get_wishlist_owner
 router = APIRouter(prefix="/api/wishlists/{wishlist_id}/share-settings", tags=["share-settings"])
-DUMMY_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
 # Helper: verify wishlist ownership
-async def _verify_ownership(wishlist_id: UUID):
-    row = await fetch_one(
-        "SELECT 1 FROM wishlists WHERE id = $1 AND owner_id = $2",
-        wishlist_id, DUMMY_USER_ID
-    )
-    if not row:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
 
 def _row_to_dict(row) -> dict:
     return {
@@ -28,8 +21,11 @@ def _row_to_dict(row) -> dict:
     }
 
 @router.get("/", response_model=ShareSettingsOut)
-async def get_share_settings(wishlist_id: UUID):
-    await _verify_ownership(wishlist_id)
+async def get_share_settings(
+    wishlist_id: UUID, 
+    current_user: dict = Depends(get_current_user),
+    owner_id: str = Depends(get_wishlist_owner)
+):
     row = await fetch_one(
         "SELECT * FROM share_settings WHERE wishlist_id = $1",
         wishlist_id
@@ -40,8 +36,12 @@ async def get_share_settings(wishlist_id: UUID):
     return _row_to_dict(row)
 
 @router.put("/", response_model=ShareSettingsOut)
-async def update_share_settings(wishlist_id: UUID, data: ShareSettingsUpdate):
-    await _verify_ownership(wishlist_id)
+async def update_share_settings(
+    wishlist_id: UUID, 
+    data: ShareSettingsUpdate, 
+    current_user: dict = Depends(get_current_user),
+    owner_id: str = Depends(get_wishlist_owner)
+):
     fields = []
     values = []
     idx = 1
