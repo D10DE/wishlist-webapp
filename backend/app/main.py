@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from app.db import init_db_pool, close_db_pool, fetch_one
 from app.api import wishlists, categories, items, share_settings
+from app.api import public
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,6 +16,7 @@ async def lifespan(app: FastAPI):
     print("🔌 Database pool closed")
 
 app = FastAPI(title="Wishlist WebApp", version="0.1.0", lifespan=lifespan)
+app.include_router(public.router)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -27,7 +29,7 @@ uploads_dir = BASE_DIR / "uploads" / "items"
 uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
-# Frontend (if you eventually serve)
+# Frontend 
 frontend_dir = BASE_DIR / "frontend"
 if frontend_dir.exists():
     app.mount("/app", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")

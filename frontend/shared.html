@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Wishlist</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+        .item { border: 1px solid #ccc; margin: 10px 0; padding: 10px; border-radius: 8px; }
+        .booked { opacity: 0.5; }
+        img { max-width: 100px; max-height: 100px; }
+    </style>
+</head>
+<body>
+    <h1 id="title"></h1>
+    <p id="desc"></p>
+    <p id="message"></p>
+    <div id="items"></div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('id');
+        if (!id) {
+            document.body.innerHTML = "Missing wishlist ID.";
+        } else {
+            fetch(`/api/public/wishlists/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('title').innerText = data.wishlist.title;
+                    document.getElementById('desc').innerText = data.wishlist.description || '';
+                    const msg = data.share_settings.custom_message;
+                    document.getElementById('message').innerText = msg ? msg : '';
+
+                    const container = document.getElementById('items');
+                    data.items.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'item';
+                        let bookedInfo = '';
+                        if (item.available === 0) {
+                            div.classList.add('booked');
+                            bookedInfo = ' (fully booked)';
+                        } else if (item.quantity_booked) {
+                            bookedInfo = ` (${item.quantity_booked}/${item.quantity_total} booked)`;
+                        } else if (item.surprise) {
+                            bookedInfo = ` (${item.quantity_total} wanted)`;
+                        }
+                        div.innerHTML = `
+                            <h3>${item.name}${bookedInfo}</h3>
+                            ${item.image_url ? `<img src="${item.image_url}" />` : ''}
+                            <p>${item.description || ''}</p>
+                            <p>Price: ${item.price ? item.price + ' ' + item.currency : 'N/A'}</p>
+                            <p>${item.comment || ''}</p>
+                            <p>Shops: ${item.shops ? item.shops.map(s => s.url ? `<a href="${s.url}">${s.name}</a>` : s.name).join(', ') : ''}</p>
+                        `;
+                        container.appendChild(div);
+                    });
+                })
+                .catch(err => alert('Error loading wishlist: ' + err));
+        }
+    </script>
+</body>
+</html>
