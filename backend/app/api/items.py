@@ -34,7 +34,6 @@ async def create_item(
     price: Optional[float] = Form(None),
     currency: str = Form("USD"),
     desired_date: Optional[str] = Form(None),   # "YYYY-MM-DD"
-    quantity_total: int = Form(1, ge=1),
     comment: Optional[str] = Form(None),
     category_id: Optional[UUID] = Form(None),
     shops: Optional[str] = Form(None),          # JSON string of list of ShopEntry
@@ -74,12 +73,12 @@ async def create_item(
     row = await fetch_one(
         """INSERT INTO items (wishlist_id, category_id, name, description,
                               price, currency, image_filename, desired_date,
-                              quantity_total, comment, shops)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                              comment, shops)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            RETURNING *""",
         wishlist_id, category_id, name, description,
         price, currency, image_filename,
-        desired_date, quantity_total, comment,
+        desired_date, comment,
         json.dumps(shops_list) if shops_list else None
     )
     return _item_out(row)
@@ -113,7 +112,6 @@ async def update_item(
     price: Optional[float] = Form(None),
     currency: Optional[str] = Form(None),
     desired_date: Optional[str] = Form(None),
-    quantity_total: Optional[int] = Form(None, ge=1),
     comment: Optional[str] = Form(None),
     category_id: Optional[UUID] = Form(None),
     shops: Optional[str] = Form(None),
@@ -129,15 +127,7 @@ async def update_item(
     if not existing:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    # Prevent reducing quantity_total below quantity_booked
-    new_qty = quantity_total if quantity_total is not None else existing["quantity_total"]
-    if new_qty < existing["quantity_booked"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot set quantity_total below already booked quantity ({existing['quantity_booked']})"
-        )
-
-    # Handle image upload (replace old one)
+    # Handle image upload
     image_filename = existing["image_filename"]
     if image:
         # Delete old file if exists
@@ -178,17 +168,15 @@ async def update_item(
                price = COALESCE($5, price),
                currency = COALESCE($6, currency),
                desired_date = COALESCE($7::date, desired_date),
-               quantity_total = COALESCE($8, quantity_total),
-               comment = COALESCE($9, comment),
-               category_id = COALESCE($10, category_id),
-               shops = COALESCE($11::jsonb, shops),
-               image_filename = COALESCE($12, image_filename)
+               comment = COALESCE($8, comment),
+               category_id = COALESCE($9, category_id),
+               shops = COALESCE($10::jsonb, shops),
+               image_filename = COALESCE($11, image_filename)
            WHERE id = $1 AND wishlist_id = $2
            RETURNING *""",
         item_id, wishlist_id,
         name, description, price, currency,
-        desired_date, quantity_total, comment,
-        category_id,
+        desired_date, comment, category_id,
         json.dumps(shops_list) if shops_list is not None else None,
         image_filename
     )
@@ -227,8 +215,6 @@ def _item_out(row) -> dict:
         "currency": row["currency"],
         "image_filename": row["image_filename"],
         "desired_date": row["desired_date"],
-        "quantity_total": row["quantity_total"],
-        "quantity_booked": row["quantity_booked"],
         "comment": row["comment"],
         "shops": row["shops"],   # JSONB is returned as list/dict from asyncpg
         "created_at": row["created_at"],

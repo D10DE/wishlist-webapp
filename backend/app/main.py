@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from app.db import init_db_pool, close_db_pool, fetch_one
 from app.api import wishlists, categories, items, share_settings
 from app.api import public
+from app.api import gifter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,6 +18,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Wishlist WebApp", version="0.1.0", lifespan=lifespan)
 app.include_router(public.router)
+app.include_router(gifter.router)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 

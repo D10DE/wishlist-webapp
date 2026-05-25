@@ -61,7 +61,6 @@ class ItemCreate(BaseModel):
     price: Optional[float] = None
     currency: str = Field("USD", max_length=3)
     desired_date: Optional[date] = None
-    quantity_total: int = Field(1, ge=1)
     comment: Optional[str] = None
     shops: Optional[List[ShopEntry]] = None
     category_id: Optional[str] = None
@@ -72,7 +71,6 @@ class ItemUpdate(BaseModel):
     price: Optional[float] = None
     currency: Optional[str] = None
     desired_date: Optional[date] = None
-    quantity_total: Optional[int] = Field(None, ge=1)
     comment: Optional[str] = None
     shops: Optional[List[ShopEntry]] = None
     category_id: Optional[str] = None
@@ -87,8 +85,6 @@ class ItemOut(BaseModel):
     currency: str
     image_filename: Optional[str]
     desired_date: Optional[date]
-    quantity_total: int
-    quantity_booked: int
     comment: Optional[str]
     shops: Optional[List[ShopEntry]]
     created_at: datetime
