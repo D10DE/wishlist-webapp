@@ -11,6 +11,15 @@ toggleBtn.addEventListener('click', () => {
     toggleBtn.textContent = mode === 'login' ? 'Switch to Register' : 'Switch to Login';
     submitBtn.textContent = mode === 'login' ? 'Login' : 'Register';
     extraFields.style.display = mode === 'register' ? 'block' : 'none';
+    // Toggle required attribute for display_name (only required in register mode)
+    const displayNameInput = document.getElementById('display_name');
+    if (displayNameInput) {
+        if (mode === 'register') {
+            displayNameInput.setAttribute('required', '');
+        } else {
+            displayNameInput.removeAttribute('required');
+        }
+    }
 });
 
 document.getElementById('auth-form').addEventListener('submit', async (e) => {

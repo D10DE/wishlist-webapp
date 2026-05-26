@@ -40,6 +40,7 @@ app.include_router(share_settings.router)
 app.include_router(public.router)
 app.include_router(bookings.wishlist_bookings_router)
 app.include_router(bookings.user_bookings_router)
+app.include_router(bookings.saved_wishlists_router)
 app.include_router(auth.router)
 
 @app.get("/")

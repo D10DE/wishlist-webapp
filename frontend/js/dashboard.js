@@ -30,26 +30,40 @@ let currentTab = 'wishlists';
 let currentWishlistId = null;
 let currentSharedId = null;
 let categories = [];
-let sharedWishlists = [];
-const SHARED_STORAGE_KEY = 'savedSharedWishlists';
 
 // ====================== SIDEBAR SHARED LIST HELPERS ======================
-function loadSavedSharedWishlists() {
-    const stored = localStorage.getItem(SHARED_STORAGE_KEY);
-    sharedWishlists = stored ? JSON.parse(stored) : [];
+// Fetch saved shared wishlists from server
+async function fetchSavedSharedWishlists() {
+    if (!token) return [];   // not logged in
+    const res = await authFetch('/api/saved-wishlists/');
+    if (!res.ok) return [];
+    return await res.json();
 }
-function saveSharedWishlists() {
-    localStorage.setItem(SHARED_STORAGE_KEY, JSON.stringify(sharedWishlists));
+
+// Add a shared wishlist to saved list
+async function saveSharedWishlistToServer(uuid) {
+    const res = await authFetch(`/api/saved-wishlists/?wishlist_id=${uuid}`, { method: 'POST' });
+    return res.ok;
+}
+
+// Remove a saved shared wishlist
+async function removeSharedWishlistFromServer(uuid) {
+    const res = await authFetch(`/api/saved-wishlists/${uuid}`, { method: 'DELETE' });
+    return res.ok;
 }
 
 async function refreshSharedListSidebar() {
-    loadSavedSharedWishlists();
     const ul = document.getElementById('shared-list-sidebar');
-    ul.innerHTML = sharedWishlists.map(w => `
-        <li class="sidebar-list-item ${w.uuid === currentSharedId ? 'active' : ''}"
-            onclick="viewSharedWishlist('${w.uuid}')">
-            <span>${escapeHtml(w.ownerName || 'Unknown')} | ${escapeHtml(w.title)}</span>
-            <button class="delete-btn" onclick="event.stopPropagation(); removeSharedWishlist('${w.uuid}')">&times;</button>
+    if (!token) {
+        ul.innerHTML = '<li class="sidebar-list-item">Log in to save shared lists</li>';
+        return;
+    }
+    const shared = await fetchSavedSharedWishlists();
+    ul.innerHTML = shared.map(w => `
+        <li class="sidebar-list-item ${w.wishlist_id === currentSharedId ? 'active' : ''}"
+            onclick="viewSharedWishlist('${w.wishlist_id}')">
+            <span>${escapeHtml(w.owner_name || 'Unknown')} | ${escapeHtml(w.title)}</span>
+            <button class="delete-btn" onclick="event.stopPropagation(); removeSharedWishlist('${w.wishlist_id}')">&times;</button>
         </li>
     `).join('');
 }
@@ -70,17 +84,12 @@ async function submitSharedWishlist() {
         return;
     }
     try {
+        // Verify the wishlist exists
         const res = await fetch(`/api/public/wishlists/${uuid}`);
         if (!res.ok) throw new Error('Not found');
-        const data = await res.json();
-        if (!sharedWishlists.some(w => w.uuid === uuid)) {
-            sharedWishlists.push({
-                uuid,
-                title: data.wishlist.title,
-                ownerName: data.wishlist.owner_name
-            });
-            saveSharedWishlists();
-        }
+        // Save to server
+        const saved = await saveSharedWishlistToServer(uuid);
+        if (!saved) throw new Error('Failed to save');
         closeModal('shared-modal');
         await refreshSharedListSidebar();
         viewSharedWishlist(uuid);
@@ -89,9 +98,9 @@ async function submitSharedWishlist() {
     }
 }
 
-function removeSharedWishlist(uuid) {
-    sharedWishlists = sharedWishlists.filter(w => w.uuid !== uuid);
-    saveSharedWishlists();
+async function removeSharedWishlist(uuid) {
+    if (!token) return;
+    await removeSharedWishlistFromServer(uuid);
     refreshSharedListSidebar();
 }
 
@@ -663,7 +672,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('lastWishlistId');
-    localStorage.removeItem(SHARED_STORAGE_KEY);
     window.location.href = '/app/login.html';
 });
 
@@ -688,6 +696,10 @@ function initApp() {
         document.getElementById('shared-list-container').classList.add('visible');
         refreshSharedListSidebar();
         viewSharedWishlist(sharedId);
+        if (token) {
+            // Auto‑save to the user's list (won't duplicate due to DB constraint)
+            saveSharedWishlistToServer(sharedId).then(() => refreshSharedListSidebar());
+        }
     } else {
         if (currentTab === 'wishlists') {
             document.getElementById('wishlist-list-container').classList.add('visible');

@@ -197,3 +197,71 @@ async def delete_my_booking(
     if "0" in result:
         raise HTTPException(status_code=404, detail="Booking not found or not yours")
     return None
+
+saved_wishlists_router = APIRouter(
+    prefix="/api/saved-wishlists",
+    tags=["saved-wishlists"]
+)
+
+from app.auth import get_current_user
+
+@saved_wishlists_router.get("/")
+async def get_saved_shared_wishlists(
+    current_user: dict = Depends(get_current_user)
+):
+    """Return all saved shared wishlists for the current user."""
+    rows = await fetch_all(
+        """
+        SELECT sw.wishlist_id, w.title, u.display_name AS owner_name
+        FROM saved_shared_wishlists sw
+        JOIN wishlists w ON w.id = sw.wishlist_id
+        JOIN users u ON u.id = w.owner_id
+        WHERE sw.user_id = $1
+        ORDER BY sw.created_at DESC
+        """,
+        current_user["id"]
+    )
+    return [
+        {
+            "wishlist_id": str(r["wishlist_id"]),
+            "title": r["title"],
+            "owner_name": r["owner_name"]
+        }
+        for r in rows
+    ]
+
+
+@saved_wishlists_router.post("/", status_code=201)
+async def save_shared_wishlist(
+    wishlist_id: UUID,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save a shared wishlist for the current user."""
+    # Verify the wishlist exists
+    wishlist = await fetch_one("SELECT id FROM wishlists WHERE id = $1", wishlist_id)
+    if not wishlist:
+        raise HTTPException(status_code=404, detail="Wishlist not found")
+
+    # Insert (ignore if already exists)
+    await execute(
+        """
+        INSERT INTO saved_shared_wishlists (user_id, wishlist_id)
+        VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+        """,
+        current_user["id"], wishlist_id
+    )
+    return {"status": "ok"}
+
+
+@saved_wishlists_router.delete("/{wishlist_id}", status_code=204)
+async def remove_saved_shared_wishlist(
+    wishlist_id: UUID,
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove a saved shared wishlist."""
+    await execute(
+        "DELETE FROM saved_shared_wishlists WHERE user_id = $1 AND wishlist_id = $2",
+        current_user["id"], wishlist_id
+    )
+    return None
