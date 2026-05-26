@@ -99,6 +99,26 @@ body { font-family: sans-serif; background: #f4f6f9; color: #333; }
 }
 .btn-new:hover { background: #16a085; }
 
+.sidebar-list li {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.sidebar-list .delete-btn {
+    display: none;
+    background: none;
+    border: none;
+    color: #e74c3c;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 5px;
+    line-height: 1;
+}
+.sidebar-list li:hover .delete-btn {
+    display: inline-block;
+}
+
 /* ========== MAIN CONTENT ========== */
 .main {
     flex: 1;
@@ -138,6 +158,19 @@ body { font-family: sans-serif; background: #f4f6f9; color: #333; }
     margin-top: 10px;
     display: flex;
     gap: 10px;
+}
+/* Dynamic shop rows */
+.shop-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+.shop-row input {
+    flex: 1;
+}
+.shop-row button {
+    flex-shrink: 0;
 }
 
 /* ========== BUTTONS ========== */

@@ -1,7 +1,6 @@
 // ====================== CONFIGURATION ======================
 const token = localStorage.getItem('token');
 if (!token) {
-    // hide private tabs, but keep 'shared' visible
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.sidebar-tab:not([data-tab="shared"])').forEach(btn => btn.style.display = 'none');
         document.getElementById('wishlist-list-container').style.display = 'none';
@@ -14,7 +13,6 @@ const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
 document.getElementById('user-display').textContent =
     `Logged in as ${storedUser.email || storedUser.username || 'Unknown'}`;
 
-// Auth wrapper
 async function authFetch(url, options = {}) {
     const headers = options.headers || {};
     headers['Authorization'] = `Bearer ${token}`;
@@ -42,21 +40,27 @@ async function refreshSharedListSidebar() {
     loadSavedSharedWishlists();
     const ul = document.getElementById('shared-list-sidebar');
     ul.innerHTML = sharedWishlists.map(w => `
-        <li class="${w.uuid === currentSharedId ? 'active' : ''}"
+        <li class="sidebar-list-item ${w.uuid === currentSharedId ? 'active' : ''}"
             onclick="viewSharedWishlist('${w.uuid}')">
-            ${escapeHtml(w.title)}
+            <span>${escapeHtml(w.title)}</span>
+            <button class="delete-btn" onclick="event.stopPropagation(); removeSharedWishlist('${w.uuid}')">&times;</button>
         </li>
     `).join('');
 }
 
-async function addSharedWishlistPrompt() {
-    const input = prompt('Paste the wishlist ID or full link:');
+function openSharedModal() {
+    document.getElementById('shared-uuid-input-modal').value = '';
+    openModal('shared-modal');
+}
+
+async function submitSharedWishlist() {
+    const input = document.getElementById('shared-uuid-input-modal').value.trim();
     if (!input) return;
     let uuid = input;
     const match = input.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
     if (match) uuid = match[0];
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
-        alert('Invalid UUID format.');
+        showAlert('Invalid UUID format.');
         return;
     }
     try {
@@ -67,10 +71,11 @@ async function addSharedWishlistPrompt() {
             sharedWishlists.push({ uuid, title: data.wishlist.title });
             saveSharedWishlists();
         }
+        closeModal('shared-modal');
         await refreshSharedListSidebar();
         viewSharedWishlist(uuid);
     } catch (err) {
-        alert('This wishlist does not exist or is not public.');
+        showAlert('This wishlist does not exist or is not public.');
     }
 }
 
@@ -106,7 +111,7 @@ document.querySelectorAll('.sidebar-tab').forEach(btn => {
     });
 });
 
-// ====================== WISHLISTS VIEW (OWN) ======================
+// ====================== WISHLISTS VIEW ======================
 async function loadWishlistsView() {
     currentWishlistId = null;
     const main = document.getElementById('main-content');
@@ -121,9 +126,11 @@ async function refreshWishlistListSidebar() {
     const lists = await res.json();
     const ul = document.getElementById('wishlist-list-sidebar');
     ul.innerHTML = lists.map(w => `
-        <li class="${w.id === currentWishlistId ? 'active' : ''}"
-            onclick="selectWishlist('${w.id}')">${escapeHtml(w.title)}</li>
-    `).join('');
+        <li class="sidebar-list-item ${w.id === currentWishlistId ? 'active' : ''}"
+            onclick="selectWishlist('${w.id}')">
+            <span>${escapeHtml(w.title)}</span>
+            <button class="delete-btn" onclick="event.stopPropagation(); deleteWishlist('${w.id}')">&times;</button>
+        </li>`).join('');
 }
 
 async function selectWishlist(id) {
@@ -182,7 +189,7 @@ async function selectWishlist(id) {
             <div class="item-grid" id="items-container">Loading...</div>
         </div>
         <div class="card">
-            <h3>Categories <button class="btn btn-sm btn-primary" onclick="openAddCategoryModal()">+ Add</button></h3>
+            <h3>Categories <button class="btn btn-sm btn-primary" onclick="openCategoryModal()">+ Add</button></h3>
             <div id="categories-container">Loading...</div>
         </div>
     `;
@@ -201,7 +208,7 @@ async function selectWishlist(id) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
-        alert('Settings saved!');
+        showAlert('Settings saved!');
     };
 
     loadItems(id);
@@ -226,7 +233,7 @@ async function viewSharedWishlist(uuid) {
     const params = gifterId ? `?gifter_id=${gifterId}` : '';
     const res = await fetch(`/api/public/wishlists/${uuid}${params}`);
     if (!res.ok) {
-        alert('Failed to load wishlist');
+        showAlert('Failed to load wishlist');
         return;
     }
     const data = await res.json();
@@ -282,7 +289,7 @@ async function bookItemShared(itemId) {
         viewSharedWishlist(currentSharedId);
     } else {
         const err = await res.json();
-        alert(err.detail || 'Booking failed');
+        showAlert(err.detail || 'Booking failed');
     }
 }
 
@@ -292,7 +299,7 @@ async function cancelBookingShared(bookingId) {
     if (res.ok) {
         viewSharedWishlist(currentSharedId);
     } else {
-        alert('Cancellation failed');
+        showAlert('Cancellation failed');
     }
 }
 
@@ -332,19 +339,20 @@ async function markAsGifted(bookingId) {
         if (currentTab === 'bookings') loadBookingsView('booked');
         else if (currentTab === 'history') loadBookingsView('gifted');
     } else {
-        alert('Failed to update status');
+        showAlert('Failed to update status');
     }
 }
 
 async function deleteBooking(bookingId) {
-    if (!confirm('Delete this booking?')) return;
-    const res = await authFetch(`/api/bookings/${bookingId}`, { method: 'DELETE' });
-    if (res.ok) {
-        if (currentTab === 'bookings') loadBookingsView('booked');
-        else if (currentTab === 'history') loadBookingsView('gifted');
-    } else {
-        alert('Failed to delete');
-    }
+    showConfirm('Delete this booking?', async () => {
+        const res = await authFetch(`/api/bookings/${bookingId}`, { method: 'DELETE' });
+        if (res.ok) {
+            if (currentTab === 'bookings') loadBookingsView('booked');
+            else if (currentTab === 'history') loadBookingsView('gifted');
+        } else {
+            showAlert('Failed to delete');
+        }
+    });
 }
 
 // ====================== WISHLIST CRUD ======================
@@ -370,34 +378,37 @@ async function createWishlist() {
             const newWish = await res.json();
             selectWishlist(newWish.id);
         } else {
-            alert('Failed to create wishlist');
+            showAlert('Failed to create wishlist');
         }
     };
     openModal('wishlist-modal');
 }
 
-async function editWishlist(id) {
+function editWishlist(id) {
+    // Using prompt for simplicity; could be replaced with modal in future
     const newTitle = prompt('New title:');
     if (newTitle === null) return;
     const newDesc = prompt('New description:');
     if (newDesc === null) return;
-    const res = await authFetch(`/api/wishlists/${id}`, {
+    authFetch(`/api/wishlists/${id}`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ title: newTitle, description: newDesc })
+    }).then(res => {
+        if (res.ok) {
+            refreshWishlistListSidebar();
+            selectWishlist(id);
+        } else showAlert('Edit failed');
     });
-    if (res.ok) {
-        await refreshWishlistListSidebar();
-        selectWishlist(id);
-    } else alert('Edit failed');
 }
 
-async function deleteWishlist(id) {
-    if (!confirm('Delete this wishlist and all items?')) return;
-    await authFetch(`/api/wishlists/${id}`, { method: 'DELETE' });
-    currentWishlistId = null;
-    document.getElementById('main-content').innerHTML = '<div class="card"><h3>Wishlist deleted</h3></div>';
-    await refreshWishlistListSidebar();
+function deleteWishlist(id) {
+    showConfirm('Delete this wishlist and all items?', async () => {
+        await authFetch(`/api/wishlists/${id}`, { method: 'DELETE' });
+        currentWishlistId = null;
+        document.getElementById('main-content').innerHTML = '<div class="card"><h3>Wishlist deleted</h3></div>';
+        await refreshWishlistListSidebar();
+    });
 }
 
 // ====================== ITEMS ======================
@@ -417,7 +428,7 @@ async function loadItems(wishlistId) {
             <p><strong>Price:</strong> ${item.price ? item.price + ' ' + item.currency : 'N/A'}</p>
             ${item.desired_date ? `<p><strong>Desired:</strong> ${item.desired_date}</p>` : ''}
             <p>${escapeHtml(item.comment || '')}</p>
-            ${item.shops ? `<p><strong>Shops:</strong> ${item.shops.map(s => s.url ? `<a href="${s.url}" target="_blank">${s.name}</a>` : s.name).join(', ')}</p>` : ''}
+            ${item.shops ? '<p><strong>Shops:</strong> ' + item.shops.map(s => s.url ? `<a href="${s.url}" target="_blank">${s.name}</a>` : s.name).join(', ') + '</p>' : ''}
             <p><strong>Category:</strong> ${item.category_id ? item.category_id : 'None'}</p>
             <div class="item-actions">
                 <button class="btn btn-primary btn-sm" onclick='editItem("${item.id}")'>Edit</button>
@@ -427,10 +438,12 @@ async function loadItems(wishlistId) {
     `).join('');
 }
 
-async function openAddItemModal() {
+function openAddItemModal() {
     document.getElementById('item-modal-title').textContent = 'Add Item';
     document.getElementById('item-form').reset();
     document.getElementById('edit-item-id').value = '';
+    document.getElementById('shops-container').innerHTML = '';
+    addShopRow(); // start with one empty row
     const select = document.getElementById('item-category-select');
     select.innerHTML = '<option value="">-- None --</option>' +
         categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
@@ -448,12 +461,50 @@ async function editItem(itemId) {
     form.currency.value = item.currency || 'USD';
     form.desired_date.value = item.desired_date || '';
     form.comment.value = item.comment || '';
-    form.shops.value = item.shops ? JSON.stringify(item.shops) : '';
     document.getElementById('edit-item-id').value = item.id;
+
+    // Rebuild shop rows from existing shops array
+    const container = document.getElementById('shops-container');
+    container.innerHTML = '';
+    if (item.shops && item.shops.length) {
+        item.shops.forEach(shop => addShopRow(shop.name, shop.url));
+    } else {
+        addShopRow(); // at least one empty
+    }
+
     const select = document.getElementById('item-category-select');
     select.innerHTML = '<option value="">-- None --</option>' +
         categories.map(c => `<option value="${c.id}" ${c.id === item.category_id ? 'selected' : ''}>${c.name}</option>`).join('');
     openModal('item-modal');
+}
+
+// ====================== DYNAMIC SHOPS ======================
+function addShopRow(name = '', url = '') {
+    const container = document.getElementById('shops-container');
+    const row = document.createElement('div');
+    row.className = 'shop-row';
+    row.innerHTML = `
+        <input type="text" placeholder="Shop name" value="${escapeHtml(name)}" class="shop-name">
+        <input type="text" placeholder="URL (optional)" value="${escapeHtml(url)}" class="shop-url">
+        <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.shop-row').remove()">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+function collectShops() {
+    const rows = document.querySelectorAll('#shops-container .shop-row');
+    const shops = [];
+    rows.forEach(row => {
+        const nameInput = row.querySelector('.shop-name');
+        const urlInput = row.querySelector('.shop-url');
+        if (nameInput && nameInput.value.trim()) {
+            shops.push({
+                name: nameInput.value.trim(),
+                url: urlInput.value.trim() || null
+            });
+        }
+    });
+    return shops.length ? JSON.stringify(shops) : null;
 }
 
 // Item form submission
@@ -470,7 +521,7 @@ document.getElementById('item-form').addEventListener('submit', async function(e
     formData.append('currency', form.currency.value);
     formData.append('desired_date', form.desired_date.value);
     formData.append('comment', form.comment.value);
-    formData.append('shops', form.shops.value);
+    formData.append('shops', collectShops() || '');
     formData.append('category_id', form.category_id.value || '');
     if (form.image.files[0]) {
         formData.append('image', form.image.files[0]);
@@ -490,15 +541,16 @@ document.getElementById('item-form').addEventListener('submit', async function(e
         loadItems(currentWishlistId);
     } else {
         const err = await res.json();
-        alert('Error: ' + (err.detail || 'Unknown'));
+        showAlert('Error: ' + (err.detail || 'Unknown'));
     }
 });
 
-async function deleteItem(itemId) {
-    if (!confirm('Delete this item?')) return;
-    const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`, { method: 'DELETE' });
-    if (res.ok) loadItems(currentWishlistId);
-    else alert('Delete failed');
+function deleteItem(itemId) {
+    showConfirm('Delete this item?', async () => {
+        const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`, { method: 'DELETE' });
+        if (res.ok) loadItems(currentWishlistId);
+        else showAlert('Delete failed');
+    });
 }
 
 // ====================== CATEGORIES ======================
@@ -516,8 +568,13 @@ async function loadCategories() {
         '</ul>';
 }
 
-async function openAddCategoryModal() {
-    const name = prompt('Category name:');
+function openCategoryModal() {
+    document.getElementById('new-category-name').value = '';
+    openModal('category-modal');
+}
+
+async function submitCategory() {
+    const name = document.getElementById('new-category-name').value.trim();
     if (!name) return;
     const res = await authFetch('/api/categories/', {
         method: 'POST',
@@ -525,26 +582,29 @@ async function openAddCategoryModal() {
         body: JSON.stringify({ name })
     });
     if (res.ok) {
+        closeModal('category-modal');
         loadCategories();
+        const newCat = await res.json();
+        // If item modal is open, add to dropdown
         const select = document.getElementById('item-category-select');
         if (select) {
-            const newCat = await res.json();
             select.innerHTML += `<option value="${newCat.id}">${newCat.name}</option>`;
         }
     } else {
         const err = await res.json();
-        alert(err.detail);
+        showAlert(err.detail);
     }
 }
 
-async function deleteCategory(catId) {
-    if (!confirm('Delete this category? Items will lose their category.')) return;
-    const res = await authFetch(`/api/categories/${catId}`, { method: 'DELETE' });
-    if (res.ok) loadCategories();
-    else alert('Delete failed');
+function deleteCategory(catId) {
+    showConfirm('Delete this category? Items will lose their category.', async () => {
+        const res = await authFetch(`/api/categories/${catId}`, { method: 'DELETE' });
+        if (res.ok) loadCategories();
+        else showAlert('Delete failed');
+    });
 }
 
-// ====================== MODAL HELPERS ======================
+// ====================== MODALS & HELPERS ======================
 function openModal(id) {
     document.getElementById(id).style.display = 'flex';
 }
@@ -557,7 +617,23 @@ window.onclick = function(event) {
     }
 };
 
-// ====================== UTILS ======================
+// Reusable confirm modal
+function showConfirm(message, onConfirm) {
+    document.getElementById('confirm-message').textContent = message;
+    const okBtn = document.getElementById('confirm-ok-btn');
+    okBtn.onclick = () => {
+        closeModal('confirm-modal');
+        onConfirm();
+    };
+    openModal('confirm-modal');
+}
+
+// Reusable alert modal
+function showAlert(message) {
+    document.getElementById('alert-message').textContent = message;
+    openModal('alert-modal');
+}
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -568,7 +644,7 @@ function copyShareLink() {
     const input = document.getElementById('share-link-input');
     input.select();
     document.execCommand('copy');
-    alert('Link copied!');
+    showAlert('Link copied!');
 }
 
 // ====================== LOGOUT ======================
@@ -582,7 +658,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 // ====================== INITIAL LOAD ======================
 function initApp() {
-    // If not logged in, hide private tabs and show login button
     if (!token) {
         document.querySelectorAll('.sidebar-tab:not([data-tab="shared"])').forEach(btn => btn.style.display = 'none');
         document.getElementById('wishlist-list-container').style.display = 'none';
@@ -594,7 +669,6 @@ function initApp() {
     const urlParams = new URLSearchParams(window.location.search);
     const sharedId = urlParams.get('shared');
     if (sharedId) {
-        // Activate shared tab
         currentTab = 'shared';
         document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
         const sharedTabBtn = document.querySelector('.sidebar-tab[data-tab="shared"]');
