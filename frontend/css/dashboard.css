@@ -71,19 +71,19 @@ body { font-family: sans-serif; background: #f4f6f9; color: #333; }
     display: block;
 }
 
-#wishlist-list-sidebar {
+.sidebar-list {
     list-style: none;
     margin-bottom: 10px;
 }
-#wishlist-list-sidebar li {
+.sidebar-list li {
     padding: 8px 10px;
     cursor: pointer;
     border-radius: 4px;
     margin-bottom: 3px;
     word-break: break-word;
 }
-#wishlist-list-sidebar li:hover { background: #34495e; }
-#wishlist-list-sidebar li.active { background: #1abc9c; font-weight: bold; }
+.sidebar-list li:hover { background: #34495e; }
+.sidebar-list li.active { background: #1abc9c; font-weight: bold; }
 
 .btn-new {
     display: block;

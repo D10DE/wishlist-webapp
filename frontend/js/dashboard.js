@@ -1,26 +1,15 @@
 // ====================== CONFIGURATION ======================
 const token = localStorage.getItem('token');
-
-//if (!token) window.location.href = '/app/login.html';
 if (!token) {
-    // Hide all sidebar tabs except 'shared'
-    document.querySelectorAll('.sidebar-tab:not([data-tab="shared"])').forEach(btn => {
-        btn.style.display = 'none';
+    // hide private tabs, but keep 'shared' visible
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.sidebar-tab:not([data-tab="shared"])').forEach(btn => btn.style.display = 'none');
+        document.getElementById('wishlist-list-container').style.display = 'none';
+        document.getElementById('logout-btn').textContent = 'Log in';
+        document.getElementById('logout-btn').onclick = () => window.location.href = '/app/login.html';
+        document.getElementById('user-display').textContent = 'Not logged in';
     });
-    // Also hide the wishlist list container (it won't be used)
-    document.getElementById('wishlist-list-container').style.display = 'none';
-    // Show a login link in the sidebar header maybe? We can add a login button.
-    // But we already have a logout button that we'll repurpose.
-    // Let's replace the logout button with a login button if not authed.
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.textContent = 'Log in';
-        logoutBtn.onclick = () => window.location.href = '/app/login.html';
-    }
-    // Also change the user-display text
-    document.getElementById('user-display').textContent = 'Not logged in';
 }
-
 const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
 document.getElementById('user-display').textContent =
     `Logged in as ${storedUser.email || storedUser.username || 'Unknown'}`;
@@ -32,74 +21,92 @@ async function authFetch(url, options = {}) {
     return fetch(url, { ...options, headers });
 }
 
-
-// ====================== TAB MANAGEMENT ======================
-let currentTab = 'wishlists';   // default
-let currentWishlistId = null;   // for wishlist detail
-let categories = [];            // user's categories
-let sharedWishlists = [];       // array of {uuid, title} from localStorage
-let currentSharedId = null;     // UUID of the shared wishlist currently being viewed
+// ====================== GLOBAL STATE ======================
+let currentTab = 'wishlists';
+let currentWishlistId = null;
+let currentSharedId = null;
+let categories = [];
+let sharedWishlists = [];
 const SHARED_STORAGE_KEY = 'savedSharedWishlists';
 
+// ====================== SIDEBAR SHARED LIST HELPERS ======================
+function loadSavedSharedWishlists() {
+    const stored = localStorage.getItem(SHARED_STORAGE_KEY);
+    sharedWishlists = stored ? JSON.parse(stored) : [];
+}
+function saveSharedWishlists() {
+    localStorage.setItem(SHARED_STORAGE_KEY, JSON.stringify(sharedWishlists));
+}
+
+async function refreshSharedListSidebar() {
+    loadSavedSharedWishlists();
+    const ul = document.getElementById('shared-list-sidebar');
+    ul.innerHTML = sharedWishlists.map(w => `
+        <li class="${w.uuid === currentSharedId ? 'active' : ''}"
+            onclick="viewSharedWishlist('${w.uuid}')">
+            ${escapeHtml(w.title)}
+        </li>
+    `).join('');
+}
+
+async function addSharedWishlistPrompt() {
+    const input = prompt('Paste the wishlist ID or full link:');
+    if (!input) return;
+    let uuid = input;
+    const match = input.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (match) uuid = match[0];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
+        alert('Invalid UUID format.');
+        return;
+    }
+    try {
+        const res = await fetch(`/api/public/wishlists/${uuid}`);
+        if (!res.ok) throw new Error('Not found');
+        const data = await res.json();
+        if (!sharedWishlists.some(w => w.uuid === uuid)) {
+            sharedWishlists.push({ uuid, title: data.wishlist.title });
+            saveSharedWishlists();
+        }
+        await refreshSharedListSidebar();
+        viewSharedWishlist(uuid);
+    } catch (err) {
+        alert('This wishlist does not exist or is not public.');
+    }
+}
+
+function removeSharedWishlist(uuid) {
+    sharedWishlists = sharedWishlists.filter(w => w.uuid !== uuid);
+    saveSharedWishlists();
+    refreshSharedListSidebar();
+}
+
+// ====================== TAB MANAGEMENT ======================
 document.querySelectorAll('.sidebar-tab').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentTab = btn.dataset.tab;
 
-        // Show/hide the wishlist list container
-        const listContainer = document.getElementById('wishlist-list-container');
+        const ownContainer = document.getElementById('wishlist-list-container');
+        const sharedContainer = document.getElementById('shared-list-container');
+        ownContainer.classList.remove('visible');
+        sharedContainer.classList.remove('visible');
+
         if (currentTab === 'wishlists') {
-            listContainer.classList.add('visible');
+            ownContainer.classList.add('visible');
             loadWishlistsView();
         } else if (currentTab === 'shared') {
-            listContainer.classList.remove('visible'); 
+            sharedContainer.classList.add('visible');
+            refreshSharedListSidebar();
             loadSharedView();
         } else {
-            listContainer.classList.remove('visible');
             if (currentTab === 'bookings') loadBookingsView('booked');
             else if (currentTab === 'history') loadBookingsView('gifted');
         }
     });
 });
 
-// Load saved shared wishlists from localStorage
-function loadSavedSharedWishlists() {
-    const stored = localStorage.getItem(SHARED_STORAGE_KEY);
-    sharedWishlists = stored ? JSON.parse(stored) : [];
-}
-
-// Save to localStorage
-function saveSharedWishlists() {
-    localStorage.setItem(SHARED_STORAGE_KEY, JSON.stringify(sharedWishlists));
-}
-
-// Add a new shared wishlist by UUID (fetch title)
-async function addSharedWishlist(uuid) {
-    try {
-        const res = await fetch(`/api/public/wishlists/${uuid}`);
-        if (!res.ok) throw new Error('Wishlist not found');
-        const data = await res.json();
-        // Avoid duplicates
-        if (!sharedWishlists.some(w => w.uuid === uuid)) {
-            sharedWishlists.push({ uuid, title: data.wishlist.title });
-            saveSharedWishlists();
-        }
-        return true;
-    } catch (err) {
-        alert('Invalid shared link or wishlist not found.');
-        return false;
-    }
-}
-
-// Remove a shared wishlist from saved list
-function removeSharedWishlist(uuid) {
-    sharedWishlists = sharedWishlists.filter(w => w.uuid !== uuid);
-    saveSharedWishlists();
-    loadSharedView();   // refresh the list
-}
-
-// ====================== WISHLISTS VIEW ======================
+// ====================== WISHLISTS VIEW (OWN) ======================
 async function loadWishlistsView() {
     currentWishlistId = null;
     const main = document.getElementById('main-content');
@@ -121,8 +128,8 @@ async function refreshWishlistListSidebar() {
 
 async function selectWishlist(id) {
     currentWishlistId = id;
+    currentSharedId = null;
     localStorage.setItem('lastWishlistId', id);
-    // Highlight in the sidebar list
     document.querySelectorAll('#wishlist-list-sidebar li').forEach(li => li.classList.remove('active'));
     const li = document.querySelector(`#wishlist-list-sidebar li[onclick="selectWishlist('${id}')"]`);
     if (li) li.classList.add('active');
@@ -134,9 +141,9 @@ async function selectWishlist(id) {
     const wishlist = await wlRes.json();
     const share = await shareRes.json();
 
-    const detail = document.getElementById('main-content');
+    const main = document.getElementById('main-content');
     const shareUrl = `${window.location.origin}/app/dashboard.html?shared=${id}`;
-    detail.innerHTML = `
+    main.innerHTML = `
         <div class="card">
             <h3>${escapeHtml(wishlist.title)}</h3>
             <p>${escapeHtml(wishlist.description || '')}</p>
@@ -180,7 +187,6 @@ async function selectWishlist(id) {
         </div>
     `;
 
-    // Share settings form
     document.getElementById('share-settings-form').onsubmit = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -202,74 +208,21 @@ async function selectWishlist(id) {
     loadCategories();
 }
 
-// ====================== Shared Whishlists =============================
-
+// ====================== SHARED WISHLISTS VIEW ======================
 function loadSharedView() {
-    loadSavedSharedWishlists();
     const main = document.getElementById('main-content');
-    let savedHtml = '';
-    if (sharedWishlists.length > 0) {
-        savedHtml = `
-            <h3>Saved Shared Wishlists</h3>
-            <ul>
-                ${sharedWishlists.map(w => `
-                    <li style="cursor:pointer; padding:6px;" 
-                        onclick="viewSharedWishlist('${w.uuid}')">
-                        ${escapeHtml(w.title)}
-                        <button class="btn btn-sm btn-danger" 
-                                onclick="event.stopPropagation(); removeSharedWishlist('${w.uuid}')">Remove</button>
-                    </li>
-                `).join('')}
-            </ul>
-        `;
-    } else {
-        savedHtml = '<p>No saved shared wishlists yet.</p>';
-    }
-
-    main.innerHTML = `
-        <div class="card">
-            <h3>🔗 View a Shared Wishlist</h3>
-            <div class="form-group">
-                <label>Paste Wishlist ID or full link</label>
-                <div style="display:flex; gap:10px;">
-                    <input type="text" id="shared-uuid-input" 
-                           placeholder="e.g., a1b2c3d4-..." style="flex:1;">
-                    <button class="btn btn-primary" onclick="handleSharedInput()">View</button>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            ${savedHtml}
-        </div>
-        <div id="shared-detail"></div>
-    `;
-}
-
-async function handleSharedInput() {
-    const input = document.getElementById('shared-uuid-input').value.trim();
-    if (!input) return;
-    // Extract UUID from a full URL if needed
-    let uuid = input;
-    const urlMatch = input.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-    if (urlMatch) uuid = urlMatch[0];
-    // Validate UUID format
-    const isValid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
-    if (!isValid) {
-        alert('Invalid Wishlist ID format.');
-        return;
-    }
-    const success = await addSharedWishlist(uuid);
-    if (success) {
-        await viewSharedWishlist(uuid);
-        loadSharedView();   // refresh saved list
-    }
+    main.innerHTML = `<div class="card"><h3>🔗 Shared Wishlists</h3><p>Select a shared wishlist from the sidebar or add a new one.</p></div>`;
 }
 
 async function viewSharedWishlist(uuid) {
+    currentSharedId = uuid;
+    currentWishlistId = null;
+    document.querySelectorAll('#shared-list-sidebar li').forEach(li => li.classList.remove('active'));
+    const li = document.querySelector(`#shared-list-sidebar li[onclick="viewSharedWishlist('${uuid}')"]`);
+    if (li) li.classList.add('active');
+
     const main = document.getElementById('main-content');
-    const sharedDetail = document.getElementById('shared-detail') || main;
-    
-    const gifterId = token ? storedUser.id : null;   // optional
+    const gifterId = token ? storedUser.id : null;
     const params = gifterId ? `?gifter_id=${gifterId}` : '';
     const res = await fetch(`/api/public/wishlists/${uuid}${params}`);
     if (!res.ok) {
@@ -277,6 +230,11 @@ async function viewSharedWishlist(uuid) {
         return;
     }
     const data = await res.json();
+
+    let warningMsg = '';
+    if (!token) {
+        warningMsg = '<p style="color:red; font-weight:bold;">Please <a href="/app/login.html">log in</a> to book items.</p>';
+    }
 
     const itemsHtml = data.items.map(item => {
         let bookingHtml = '';
@@ -289,10 +247,7 @@ async function viewSharedWishlist(uuid) {
             } else {
                 bookingHtml = `<button class="btn btn-sm btn-primary" onclick="bookItemShared('${item.id}')">Book</button>`;
             }
-        } else {
-            bookingHtml = `<p><a href="/app/login.html">Log in</a> to book.</p>`;
         }
-
         return `
             <div class="item-card">
                 <h4>${escapeHtml(item.name)}</h4>
@@ -305,19 +260,18 @@ async function viewSharedWishlist(uuid) {
         `;
     }).join('');
 
-    sharedDetail.innerHTML = `
+    main.innerHTML = `
         <div class="card">
             <h3>${escapeHtml(data.wishlist.title)}</h3>
             <p>${escapeHtml(data.wishlist.description || '')}</p>
             ${data.share_settings.custom_message ? `<p><em>${escapeHtml(data.share_settings.custom_message)}</em></p>` : ''}
+            ${warningMsg}
             <div class="item-grid">${itemsHtml}</div>
         </div>
     `;
 }
 
 async function bookItemShared(itemId) {
-    // The shared wishlist UUID is stored in a variable? We need to track which shared wishlist is currently open.
-    // Let's set a global `currentSharedId` when viewing a shared wishlist.
     if (!currentSharedId) return;
     const res = await authFetch(`/api/wishlists/${currentSharedId}/bookings`, {
         method: 'POST',
@@ -342,7 +296,7 @@ async function cancelBookingShared(bookingId) {
     }
 }
 
-// ====================== BOOKINGS & HISTORY VIEWS ======================
+// ====================== BOOKINGS & HISTORY ======================
 async function loadBookingsView(statusFilter) {
     const main = document.getElementById('main-content');
     main.innerHTML = `<div class="card"><h3>${statusFilter === 'booked' ? '🎁 My Bookings' : '📜 History'}</h3><div id="bookings-list">Loading...</div></div>`;
@@ -502,7 +456,7 @@ async function editItem(itemId) {
     openModal('item-modal');
 }
 
-// Item form submission (add or update)
+// Item form submission
 document.getElementById('item-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.target;
@@ -622,26 +576,39 @@ document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('lastWishlistId');
+    localStorage.removeItem(SHARED_STORAGE_KEY);
     window.location.href = '/app/login.html';
 });
 
 // ====================== INITIAL LOAD ======================
-// Check for shared wishlist link in URL
-const urlParams = new URLSearchParams(window.location.search);
-const sharedId = urlParams.get('shared');
-if (sharedId) {
-    // Activate the shared tab automatically
-    currentTab = 'shared';
-    document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
-    const sharedTabBtn = document.querySelector('.sidebar-tab[data-tab="shared"]');
-    if (sharedTabBtn) sharedTabBtn.classList.add('active');
-    document.getElementById('wishlist-list-container').classList.remove('visible');
-    // Load the shared wishlist after a short delay to ensure DOM is ready
-    loadSharedView().then(() => viewSharedWishlist(sharedId));
-} else {
-    // Default tab
-    if (currentTab === 'wishlists') {
-        document.getElementById('wishlist-list-container').classList.add('visible');
+function initApp() {
+    // If not logged in, hide private tabs and show login button
+    if (!token) {
+        document.querySelectorAll('.sidebar-tab:not([data-tab="shared"])').forEach(btn => btn.style.display = 'none');
+        document.getElementById('wishlist-list-container').style.display = 'none';
+        document.getElementById('logout-btn').textContent = 'Log in';
+        document.getElementById('logout-btn').onclick = () => window.location.href = '/app/login.html';
+        document.getElementById('user-display').textContent = 'Not logged in';
     }
-    loadWishlistsView();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedId = urlParams.get('shared');
+    if (sharedId) {
+        // Activate shared tab
+        currentTab = 'shared';
+        document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
+        const sharedTabBtn = document.querySelector('.sidebar-tab[data-tab="shared"]');
+        if (sharedTabBtn) sharedTabBtn.classList.add('active');
+        document.getElementById('wishlist-list-container').classList.remove('visible');
+        document.getElementById('shared-list-container').classList.add('visible');
+        refreshSharedListSidebar();
+        viewSharedWishlist(sharedId);
+    } else {
+        if (currentTab === 'wishlists') {
+            document.getElementById('wishlist-list-container').classList.add('visible');
+        }
+        loadWishlistsView();
+    }
 }
+
+initApp();

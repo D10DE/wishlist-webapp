@@ -25,8 +25,12 @@
 
         <!-- Wishlist list (only visible when 'wishlists' tab active) -->
         <div id="wishlist-list-container" class="wishlist-list-container">
-            <ul id="wishlist-list-sidebar"></ul>
+            <ul id="wishlist-list-sidebar" class="sidebar-list"></ul>
             <button class="btn btn-new" onclick="createWishlist()">+ New Wishlist</button>
+        </div>
+        <div id="shared-list-container" class="wishlist-list-container">
+            <ul id="shared-list-sidebar" class="sidebar-list"></ul>
+            <button class="btn btn-new" onclick="addSharedWishlistPrompt()">+ Add Shared</button>
         </div>
     </aside>
 
