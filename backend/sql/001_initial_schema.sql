@@ -43,7 +43,7 @@ CREATE TABLE categories (
 );
 
 -- ============================================================
--- ITEMS (no quantity columns)
+-- ITEMS
 -- ============================================================
 CREATE TABLE items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,7 +61,7 @@ CREATE TABLE items (
 );
 
 -- ============================================================
--- BOOKINGS (one gifter per item, no quantity)
+-- BOOKINGS
 -- ============================================================
 CREATE TABLE bookings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -20,7 +20,10 @@ async def view_public_wishlist(
     gifter_id = current_user["id"] if current_user else None
     # 1. Fetch wishlist (must exist)
     wishlist = await fetch_one(
-        "SELECT id, title, description FROM wishlists WHERE id = $1",
+        """SELECT w.id, w.title, w.description, u.display_name AS owner_name
+        FROM wishlists w
+        JOIN users u ON u.id = w.owner_id
+        WHERE w.id = $1""",
         wishlist_id
     )
     if not wishlist:
@@ -118,6 +121,7 @@ async def view_public_wishlist(
             "id": str(wishlist["id"]),
             "title": wishlist["title"],
             "description": wishlist["description"],
+            "owner_name": wishlist["owner_name"],
         },
         "share_settings": {
             "show_booked_details": share["show_booked_details"],

@@ -20,6 +20,7 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
 
     let payload = { email, password };
     if (mode === 'register') {
+        payload.display_name = document.getElementById('display_name').value.trim();
         payload.username = document.getElementById('username').value || null;
         payload.phone = document.getElementById('phone').value || null;
     }

@@ -18,11 +18,11 @@ async def register(data: UserRegister):
 
     # Insert new user
     row = await fetch_one(
-        """INSERT INTO users (email, phone, username, hashed_password, is_active)
-           VALUES ($1, $2, $3, $4, TRUE)
-           RETURNING id, email, phone, username, is_active""",
-        data.email, data.phone, data.username, hashed
-    )
+        """INSERT INTO users (email, display_name, phone, username, hashed_password, is_active)
+       VALUES ($1, $2, $3, $4, $5, TRUE)
+       RETURNING id, email, display_name, phone, username, is_active""",
+    data.email, data.display_name, data.phone, data.username, hashed
+)
 
     # Create JWT
     token = create_access_token({"sub": str(row["id"])})
@@ -32,6 +32,7 @@ async def register(data: UserRegister):
         "user": {
             "id": str(row["id"]),
             "email": row["email"],
+            "display_name": row["display_name"],
             "phone": row["phone"],
             "username": row["username"]
         }
@@ -41,7 +42,7 @@ async def register(data: UserRegister):
 async def login(data: UserLogin):
     # Find user by email
     user = await fetch_one(
-        "SELECT id, email, phone, username, hashed_password, is_active FROM users WHERE email = $1",
+        "SELECT id, email, display_name, phone, username, hashed_password, is_active FROM users WHERE email = $1",
         data.email
     )
     if not user or not user["is_active"]:
@@ -58,6 +59,7 @@ async def login(data: UserLogin):
         "user": {
             "id": str(user["id"]),
             "email": user["email"],
+            "display_name": user["display_name"],
             "phone": user["phone"],
             "username": user["username"]
         }

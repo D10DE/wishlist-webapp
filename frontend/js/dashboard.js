@@ -11,12 +11,18 @@ if (!token) {
 }
 const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
 document.getElementById('user-display').textContent =
-    `Logged in as ${storedUser.email || storedUser.username || 'Unknown'}`;
+    `Logged in as ${storedUser.display_name || storedUser.email || 'Unknown'}`;
 
 async function authFetch(url, options = {}) {
     const headers = options.headers || {};
     headers['Authorization'] = `Bearer ${token}`;
     return fetch(url, { ...options, headers });
+}
+
+function getCategoryName(categoryId) {
+    if (!categoryId) return 'None';
+    const cat = categories.find(c => c.id === categoryId);
+    return cat ? cat.name : categoryId;   // fallback to ID if not found
 }
 
 // ====================== GLOBAL STATE ======================
@@ -42,7 +48,7 @@ async function refreshSharedListSidebar() {
     ul.innerHTML = sharedWishlists.map(w => `
         <li class="sidebar-list-item ${w.uuid === currentSharedId ? 'active' : ''}"
             onclick="viewSharedWishlist('${w.uuid}')">
-            <span>${escapeHtml(w.title)}</span>
+            <span>${escapeHtml(w.ownerName || 'Unknown')} | ${escapeHtml(w.title)}</span>
             <button class="delete-btn" onclick="event.stopPropagation(); removeSharedWishlist('${w.uuid}')">&times;</button>
         </li>
     `).join('');
@@ -68,7 +74,11 @@ async function submitSharedWishlist() {
         if (!res.ok) throw new Error('Not found');
         const data = await res.json();
         if (!sharedWishlists.some(w => w.uuid === uuid)) {
-            sharedWishlists.push({ uuid, title: data.wishlist.title });
+            sharedWishlists.push({
+                uuid,
+                title: data.wishlist.title,
+                ownerName: data.wishlist.owner_name
+            });
             saveSharedWishlists();
         }
         closeModal('shared-modal');
@@ -270,6 +280,7 @@ async function viewSharedWishlist(uuid) {
     main.innerHTML = `
         <div class="card">
             <h3>${escapeHtml(data.wishlist.title)}</h3>
+            <p><em>by ${escapeHtml(data.wishlist.owner_name)}</em></p>
             <p>${escapeHtml(data.wishlist.description || '')}</p>
             ${data.share_settings.custom_message ? `<p><em>${escapeHtml(data.share_settings.custom_message)}</em></p>` : ''}
             ${warningMsg}
@@ -429,7 +440,7 @@ async function loadItems(wishlistId) {
             ${item.desired_date ? `<p><strong>Desired:</strong> ${item.desired_date}</p>` : ''}
             <p>${escapeHtml(item.comment || '')}</p>
             ${item.shops ? '<p><strong>Shops:</strong> ' + item.shops.map(s => s.url ? `<a href="${s.url}" target="_blank">${s.name}</a>` : s.name).join(', ') + '</p>' : ''}
-            <p><strong>Category:</strong> ${item.category_id ? item.category_id : 'None'}</p>
+            <p><strong>Category:</strong> ${getCategoryName(item.category_id)}</p>
             <div class="item-actions">
                 <button class="btn btn-primary btn-sm" onclick='editItem("${item.id}")'>Edit</button>
                 <button class="btn btn-danger btn-sm" onclick='deleteItem("${item.id}")'>Delete</button>
