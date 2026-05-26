@@ -104,3 +104,34 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: dict   # we'll return user id, email, etc.
+
+# Bookings
+
+class BookingRequest(BaseModel):
+    item_id: str
+    is_anonymous: bool = True
+    message: Optional[str] = None
+
+class BookingOut(BaseModel):
+    id: str
+    wishlist_id: str
+    item_id: str
+    gifter_user_id: str
+    is_anonymous: bool
+    message: Optional[str]
+    booked_at: datetime
+
+class BookingWithDetailsOut(BaseModel):
+    id: str
+    wishlist_id: str
+    wishlist_title: str          # for display
+    item_id: str
+    item_name: str
+    gifter_user_id: str
+    is_anonymous: bool
+    message: Optional[str]
+    status: str                  # 'booked' or 'gifted'
+    booked_at: datetime
+
+class BookingStatusUpdate(BaseModel):
+    status: str

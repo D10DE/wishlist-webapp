@@ -8,28 +8,37 @@
 </head>
 <body>
 <div class="app">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <h2>📋 My Wishlists</h2>
-        <ul id="wishlist-list"></ul>
-        <button class="btn-new" onclick="createWishlist()">+ New Wishlist</button>
-        <p class="user-hint" id="user-display">Loading…</p>
-        <div class="user-area">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
             <span id="user-display"></span>
-            <button id="logout-btn" class="btn btn-sm" style="margin-left:10px;">Logout</button>
+            <button id="logout-btn" class="btn btn-sm">Logout</button>
         </div>
-    </div>
 
-    <!-- Main content -->
-    <div class="main" id="main-content">
+        <!-- Tab buttons (vertical) -->
+        <nav class="sidebar-nav">
+            <button class="sidebar-tab active" data-tab="wishlists">📋 My Wishlists</button>
+            <button class="sidebar-tab" data-tab="bookings">🎁 My Bookings</button>
+            <button class="sidebar-tab" data-tab="history">📜 History</button>
+        </nav>
+
+        <!-- Wishlist list (only visible when 'wishlists' tab active) -->
+        <div id="wishlist-list-container" class="wishlist-list-container">
+            <ul id="wishlist-list-sidebar"></ul>
+            <button class="btn btn-new" onclick="createWishlist()">+ New Wishlist</button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main" id="main-content">
         <div class="card">
             <h3>Welcome!</h3>
-            <p>Select a wishlist from the left or create a new one.</p>
+            <p>Select a wishlist or a tab to start.</p>
         </div>
-    </div>
+    </main>
 </div>
 
-<!-- MODALS (hidden) -->
+<!-- Wishlist create/edit modal -->
 <div class="modal" id="wishlist-modal">
     <div class="modal-content">
         <span class="close" onclick="closeModal('wishlist-modal')">&times;</span>
@@ -51,6 +60,7 @@
     </div>
 </div>
 
+<!-- Item add/edit modal -->
 <div class="modal" id="item-modal">
     <div class="modal-content">
         <span class="close" onclick="closeModal('item-modal')">&times;</span>
@@ -96,6 +106,9 @@
             <div class="form-group">
                 <label>Image</label>
                 <input type="file" name="image" accept="image/*">
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="remove_image"> Remove current picture</label>
             </div>
             <button type="submit" class="btn btn-success">Save Item</button>
         </form>

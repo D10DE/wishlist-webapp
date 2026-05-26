@@ -1,108 +1,79 @@
 // ====================== CONFIGURATION ======================
 const token = localStorage.getItem('token');
-if (!token) {
-    window.location.href = '/app/login.html';
-}
+if (!token) window.location.href = '/app/login.html';
+const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+document.getElementById('user-display').textContent =
+    `Logged in as ${storedUser.email || storedUser.username || 'Unknown'}`;
 
-// Wrapper for fetch that includes the Authorization header
+// Auth wrapper
 async function authFetch(url, options = {}) {
     const headers = options.headers || {};
     headers['Authorization'] = `Bearer ${token}`;
     return fetch(url, { ...options, headers });
 }
 
-// Show the real user
-const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-const userDisplay = document.getElementById('user-display');
-if (userDisplay) {
-    userDisplay.textContent = `Logged in as ${storedUser.email || storedUser.username || 'Unknown'}`;
-}
+// ====================== TAB MANAGEMENT ======================
+let currentTab = 'wishlists';   // default
+let currentWishlistId = null;   // for wishlist detail
+let categories = [];            // user's categories
 
-let currentWishlistId = null;
-let categories = [];
+document.querySelectorAll('.sidebar-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentTab = btn.dataset.tab;
 
-// ====================== INITIAL LOAD ======================
-async function init() {
-    await loadWishlists();
-    const lastId = localStorage.getItem('lastWishlistId');
-    if (lastId) {
-        // Check if this wishlist still exists in the loaded list
-        const listItems = document.querySelectorAll('#wishlist-list li');
-        const exists = Array.from(listItems).some(li => li.dataset.id === lastId);
-        if (exists) {
-            selectWishlist(lastId);
+        // Show/hide the wishlist list container
+        const listContainer = document.getElementById('wishlist-list-container');
+        if (currentTab === 'wishlists') {
+            listContainer.classList.add('visible');
+            loadWishlistsView();
         } else {
-            // The stored wishlist doesn't belong to this user (or was deleted)
-            localStorage.removeItem('lastWishlistId');
-            // Show default welcome (already there if nothing selected)
+            listContainer.classList.remove('visible');
+            if (currentTab === 'bookings') loadBookingsView('booked');
+            else if (currentTab === 'history') loadBookingsView('gifted');
         }
-    }
-}
-init();
+    });
+});
 
-// ====================== WISHLISTS ======================
-async function loadWishlists() {
+// ====================== WISHLISTS VIEW ======================
+async function loadWishlistsView() {
+    currentWishlistId = null;
+    const main = document.getElementById('main-content');
+    main.innerHTML = `<div class="card"><h3>Welcome!</h3><p>Select a wishlist from the sidebar.</p></div>`;
+    await refreshWishlistListSidebar();
+    const lastId = localStorage.getItem('lastWishlistId');
+    if (lastId) selectWishlist(lastId);
+}
+
+async function refreshWishlistListSidebar() {
     const res = await authFetch('/api/wishlists/');
     const lists = await res.json();
-    const ul = document.getElementById('wishlist-list');
-    ul.innerHTML = '';
-    lists.forEach(w => {
-        const li = document.createElement('li');
-        li.textContent = w.title;
-        li.dataset.id = w.id;
-        li.onclick = () => selectWishlist(w.id);
-        if (w.id === currentWishlistId) li.classList.add('active');
-        ul.appendChild(li);
-    });
-}
-
-async function createWishlist() {
-    document.getElementById('wishlist-modal-title').textContent = 'Create Wishlist';
-    document.getElementById('wishlist-form').reset();
-    document.getElementById('wishlist-form').onsubmit = async (e) => {
-        e.preventDefault();
-        const form = e.target;
-        const payload = {
-            title: form.title.value,
-            description: form.description.value,
-            is_public: form.is_public.checked
-        };
-        const res = await authFetch('/api/wishlists/', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-            closeModal('wishlist-modal');
-            await loadWishlists();
-            const newWish = await res.json();
-            selectWishlist(newWish.id);
-        } else {
-            alert('Failed to create wishlist');
-        }
-    };
-    openModal('wishlist-modal');
+    const ul = document.getElementById('wishlist-list-sidebar');
+    ul.innerHTML = lists.map(w => `
+        <li class="${w.id === currentWishlistId ? 'active' : ''}"
+            onclick="selectWishlist('${w.id}')">${escapeHtml(w.title)}</li>
+    `).join('');
 }
 
 async function selectWishlist(id) {
     currentWishlistId = id;
     localStorage.setItem('lastWishlistId', id);
-    // Highlight in sidebar
-    document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
-    const li = document.querySelector(`.sidebar li[data-id="${id}"]`);
+    // Highlight in the sidebar list
+    document.querySelectorAll('#wishlist-list-sidebar li').forEach(li => li.classList.remove('active'));
+    const li = document.querySelector(`#wishlist-list-sidebar li[onclick="selectWishlist('${id}')"]`);
     if (li) li.classList.add('active');
 
-    // Fetch details
     const [wlRes, shareRes] = await Promise.all([
         authFetch(`/api/wishlists/${id}`),
-        authFetch(`/api/wishlists/${id}/share-settings/`)
+        authFetch(`/api/wishlists/${id}/share-settings`)
     ]);
     const wishlist = await wlRes.json();
     const share = await shareRes.json();
 
-    const main = document.getElementById('main-content');
+    const detail = document.getElementById('main-content');
     const shareUrl = `${window.location.origin}/app/shared.html?id=${id}`;
-    main.innerHTML = `
+    detail.innerHTML = `
         <div class="card">
             <h3>${escapeHtml(wishlist.title)}</h3>
             <p>${escapeHtml(wishlist.description || '')}</p>
@@ -117,7 +88,7 @@ async function selectWishlist(id) {
         <div class="card">
             <h3>Share Settings</h3>
             <form id="share-settings-form">
-                <div class="form-row stack">
+                <div class="form-row">
                     <div class="form-group">
                         <label><input type="checkbox" name="show_booked_details" ${share.show_booked_details ? 'checked' : ''}> Show booked details</label>
                     </div>
@@ -146,7 +117,7 @@ async function selectWishlist(id) {
         </div>
     `;
 
-    // Attach share settings form handler
+    // Share settings form
     document.getElementById('share-settings-form').onsubmit = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -156,17 +127,96 @@ async function selectWishlist(id) {
             max_items_per_gifter: form.max_items_per_gifter.value ? parseInt(form.max_items_per_gifter.value) : null,
             custom_message: form.custom_message.value || null
         };
-        const res = await authFetch(`/api/wishlists/${id}/share-settings/`, {
+        await authFetch(`/api/wishlists/${id}/share-settings`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
-        if (res.ok) alert('Settings saved!');
-        else alert('Failed to save settings');
+        alert('Settings saved!');
     };
 
     loadItems(id);
     loadCategories();
+}
+
+// ====================== BOOKINGS & HISTORY VIEWS ======================
+async function loadBookingsView(statusFilter) {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `<div class="card"><h3>${statusFilter === 'booked' ? '🎁 My Bookings' : '📜 History'}</h3><div id="bookings-list">Loading...</div></div>`;
+    const res = await authFetch('/api/bookings/mine');
+    const bookings = await res.json();
+    const filtered = statusFilter ? bookings.filter(b => b.status === statusFilter) : bookings;
+    const container = document.getElementById('bookings-list');
+    if (!filtered.length) {
+        container.innerHTML = '<p>Nothing here.</p>';
+        return;
+    }
+    container.innerHTML = filtered.map(b => `
+        <div class="item-card">
+            <h4>${escapeHtml(b.item_name)}</h4>
+            <p>Wishlist: ${escapeHtml(b.wishlist_title)}</p>
+            <p>Status: ${b.status}</p>
+            <p>Booked on: ${new Date(b.booked_at).toLocaleDateString()}</p>
+            <div class="item-actions">
+                ${b.status === 'booked' ? `<button class="btn btn-primary btn-sm" onclick="markAsGifted('${b.id}')">Mark as Gifted</button>` : ''}
+                <button class="btn btn-danger btn-sm" onclick="deleteBooking('${b.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function markAsGifted(bookingId) {
+    const res = await authFetch(`/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ status: 'gifted' })
+    });
+    if (res.ok) {
+        if (currentTab === 'bookings') loadBookingsView('booked');
+        else if (currentTab === 'history') loadBookingsView('gifted');
+    } else {
+        alert('Failed to update status');
+    }
+}
+
+async function deleteBooking(bookingId) {
+    if (!confirm('Delete this booking?')) return;
+    const res = await authFetch(`/api/bookings/${bookingId}`, { method: 'DELETE' });
+    if (res.ok) {
+        if (currentTab === 'bookings') loadBookingsView('booked');
+        else if (currentTab === 'history') loadBookingsView('gifted');
+    } else {
+        alert('Failed to delete');
+    }
+}
+
+// ====================== WISHLIST CRUD ======================
+async function createWishlist() {
+    document.getElementById('wishlist-modal-title').textContent = 'Create Wishlist';
+    document.getElementById('wishlist-form').reset();
+    document.getElementById('wishlist-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const payload = {
+            title: form.title.value,
+            description: form.description.value,
+            is_public: form.is_public.checked
+        };
+        const res = await authFetch('/api/wishlists/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            closeModal('wishlist-modal');
+            await refreshWishlistListSidebar();
+            const newWish = await res.json();
+            selectWishlist(newWish.id);
+        } else {
+            alert('Failed to create wishlist');
+        }
+    };
+    openModal('wishlist-modal');
 }
 
 async function editWishlist(id) {
@@ -174,13 +224,13 @@ async function editWishlist(id) {
     if (newTitle === null) return;
     const newDesc = prompt('New description:');
     if (newDesc === null) return;
-    const res = await authFetch(`/api/wishlists/${id}/`, {
+    const res = await authFetch(`/api/wishlists/${id}`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ title: newTitle, description: newDesc })
     });
     if (res.ok) {
-        await loadWishlists();
+        await refreshWishlistListSidebar();
         selectWishlist(id);
     } else alert('Edit failed');
 }
@@ -190,7 +240,7 @@ async function deleteWishlist(id) {
     await authFetch(`/api/wishlists/${id}`, { method: 'DELETE' });
     currentWishlistId = null;
     document.getElementById('main-content').innerHTML = '<div class="card"><h3>Wishlist deleted</h3></div>';
-    loadWishlists();
+    await refreshWishlistListSidebar();
 }
 
 // ====================== ITEMS ======================
@@ -231,7 +281,7 @@ async function openAddItemModal() {
 }
 
 async function editItem(itemId) {
-    const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}/`);
+    const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`);
     const item = await res.json();
     document.getElementById('item-modal-title').textContent = 'Edit Item';
     const form = document.getElementById('item-form');
@@ -249,7 +299,7 @@ async function editItem(itemId) {
     openModal('item-modal');
 }
 
-// Item form submission
+// Item form submission (add or update)
 document.getElementById('item-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.target;
@@ -268,11 +318,12 @@ document.getElementById('item-form').addEventListener('submit', async function(e
     if (form.image.files[0]) {
         formData.append('image', form.image.files[0]);
     }
+    formData.append('remove_image', form.remove_image.checked);
 
-    let url = `/api/wishlists/${currentWishlistId}/items`;
+    let url = `/api/wishlists/${currentWishlistId}/items/`;
     let method = 'POST';
     if (isEdit) {
-        url += `/${itemId}`;
+        url += `${itemId}`;
         method = 'PUT';
     }
 
@@ -288,7 +339,7 @@ document.getElementById('item-form').addEventListener('submit', async function(e
 
 async function deleteItem(itemId) {
     if (!confirm('Delete this item?')) return;
-    const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}/`, { method: 'DELETE' });
+    const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`, { method: 'DELETE' });
     if (res.ok) loadItems(currentWishlistId);
     else alert('Delete failed');
 }
@@ -318,7 +369,6 @@ async function openAddCategoryModal() {
     });
     if (res.ok) {
         loadCategories();
-        // Update item form dropdown if open
         const select = document.getElementById('item-category-select');
         if (select) {
             const newCat = await res.json();
@@ -348,7 +398,7 @@ window.onclick = function(event) {
     if (event.target.classList.contains('modal')) {
         event.target.style.display = 'none';
     }
-}
+};
 
 // ====================== UTILS ======================
 function escapeHtml(text) {
@@ -363,10 +413,17 @@ function copyShareLink() {
     document.execCommand('copy');
     alert('Link copied!');
 }
-//===
+
+// ====================== LOGOUT ======================
 document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('lastWishlistId');
     window.location.href = '/app/login.html';
 });
+
+// ====================== INITIAL LOAD ======================
+if (currentTab === 'wishlists') {
+    document.getElementById('wishlist-list-container').classList.add('visible');
+}
+loadWishlistsView();   // default tab on first visit
