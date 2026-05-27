@@ -136,3 +136,11 @@ class BookingWithDetailsOut(BaseModel):
 
 class BookingStatusUpdate(BaseModel):
     status: str
+
+class WishlistBookingOut(BaseModel):
+    id: str
+    item_id: str
+    status: str
+    is_anonymous: bool
+    gifter_user_id: str
+    gifter_name: Optional[str] = None

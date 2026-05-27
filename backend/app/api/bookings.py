@@ -4,9 +4,9 @@ from typing import List, Optional
 from uuid import UUID
 
 from app.db import fetch_one, fetch_all, execute
-from app.models import BookingRequest, BookingOut, BookingWithDetailsOut, BookingStatusUpdate
+from app.models import BookingRequest, BookingOut, BookingWithDetailsOut, BookingStatusUpdate, WishlistBookingOut
 from app.auth import get_current_user
-
+from app.dependencies import get_wishlist_owner
 # ROUTER 1 – Wishlist‑scoped bookings
 
 wishlist_bookings_router = APIRouter(
@@ -96,6 +96,37 @@ async def list_my_bookings_for_wishlist(
     )
     return [_row_to_booking(r) for r in rows]
 
+@wishlist_bookings_router.get("/", response_model=List[WishlistBookingOut])
+async def get_wishlist_bookings_for_owner(
+    wishlist_id: UUID,
+    owner_id: str = Depends(get_wishlist_owner)   # ensures only the wishlist owner sees these bookings
+):
+    """Return all bookings for this wishlist (owner only)."""
+    rows = await fetch_all(
+        """
+        SELECT b.id, b.item_id, b.status, b.is_anonymous,
+               b.gifter_user_id, u.display_name AS gifter_name
+        FROM bookings b
+        JOIN users u ON u.id = b.gifter_user_id
+        WHERE b.wishlist_id = $1
+        ORDER BY b.booked_at
+        """,
+        wishlist_id
+    )
+    result = []
+    for row in rows:
+        booking = {
+            "id": str(row["id"]),
+            "item_id": str(row["item_id"]),
+            "status": row["status"],
+            "is_anonymous": row["is_anonymous"],
+            "gifter_user_id": str(row["gifter_user_id"]),
+            "gifter_name": None
+        }
+        if not row["is_anonymous"]:
+            booking["gifter_name"] = row["gifter_name"]
+        result.append(booking)
+    return result
 
 @wishlist_bookings_router.delete("/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_booking(

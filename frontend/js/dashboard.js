@@ -30,6 +30,8 @@ let currentTab = 'wishlists';
 let currentWishlistId = null;
 let currentSharedId = null;
 let categories = [];
+let currentBookings = {};   // item_id -> { status, gifter_name, is_anonymous }
+let showGifterNames = false; // toggle state
 
 // ====================== SIDEBAR SHARED LIST HELPERS ======================
 // Fetch saved shared wishlists from server
@@ -204,6 +206,9 @@ async function selectWishlist(id) {
             </form>
         </div>
         <div class="card">
+            <button class="btn btn-sm" id="toggle-gifter-names-btn">Show Gifter Details</button>
+        </div>
+        <div class="card">
             <h3>Items <button class="btn btn-success btn-sm" onclick="openAddItemModal()">+ Add Item</button></h3>
             <div class="item-grid" id="items-container">Loading...</div>
         </div>
@@ -230,8 +235,35 @@ async function selectWishlist(id) {
         showAlert('Settings saved!');
     };
 
-    loadItems(id);
+    document.getElementById('toggle-gifter-names-btn').addEventListener('click', () => {
+        showGifterNames = !showGifterNames;
+        const btn = document.getElementById('toggle-gifter-names-btn');
+        btn.textContent = showGifterNames ? 'Hide Gifter Details' : 'Show Gifter Details';
+        loadItems(currentWishlistId);   // re‑render items with new visibility
+    });
+
+    await loadWishlistBookings(id);
+    await loadItems(id);
     loadCategories();
+    
+}
+
+async function loadWishlistBookings(wishlistId) {
+    showGifterNames = false;   // reset toggle on wishlist change
+    const res = await authFetch(`/api/wishlists/${wishlistId}/bookings`);
+    if (!res.ok) {
+        currentBookings = {};
+        return;
+    }
+    const bookings = await res.json();
+    currentBookings = {};
+    bookings.forEach(b => {
+        currentBookings[b.item_id] = {
+            status: b.status,
+            gifter_name: b.gifter_name || null,
+            is_anonymous: b.is_anonymous
+        };
+    });
 }
 
 // ====================== SHARED WISHLISTS VIEW ======================
@@ -454,22 +486,41 @@ async function loadItems(wishlistId) {
         container.innerHTML = '<p>No items yet.</p>';
         return;
     }
-    container.innerHTML = items.map(item => `
-        <div class="item-card">
-            ${item.image_filename ? `<img src="/uploads/${item.image_filename}" alt="${escapeHtml(item.name)}">` : ''}
-            <h4>${escapeHtml(item.name)}</h4>
-            <p>${escapeHtml(item.description || '')}</p>
-            <p><strong>Price:</strong> ${item.price ? item.price + ' ' + item.currency : 'N/A'}</p>
-            ${item.desired_date ? `<p><strong>Desired:</strong> ${item.desired_date}</p>` : ''}
-            <p>${escapeHtml(item.comment || '')}</p>
-            ${item.shops ? '<p><strong>Shops:</strong> ' + item.shops.map(s => s.url ? `<a href="${s.url}" target="_blank">${s.name}</a>` : s.name).join(', ') + '</p>' : ''}
-            <p><strong>Category:</strong> ${getCategoryName(item.category_id)}</p>
-            <div class="item-actions">
-                <button class="btn btn-primary btn-sm" onclick='editItem("${item.id}")'>Edit</button>
-                <button class="btn btn-danger btn-sm" onclick='deleteItem("${item.id}")'>Delete</button>
+    container.innerHTML = items.map(item => {
+        const booking = currentBookings[item.id];
+        let bookingText = '';
+        if (booking) {
+            if (booking.status === 'gifted') {
+                bookingText = '🎁 Gifted';
+            } else {
+                bookingText = '📌 Booked';
+            }
+            if (showGifterNames && !booking.is_anonymous && booking.gifter_name) {
+                bookingText += ` by ${escapeHtml(booking.gifter_name)}`;
+            } else if (showGifterNames && booking.is_anonymous) {
+                bookingText += ' by mystery gifter';
+            }
+            // If showGifterNames is false, just show "Booked" or "Gifted"
+        }
+
+        return `
+            <div class="item-card">
+                ${item.image_filename ? `<img src="/uploads/${item.image_filename}" alt="${escapeHtml(item.name)}">` : ''}
+                <h4>${escapeHtml(item.name)}</h4>
+                <p>${escapeHtml(item.description || '')}</p>
+                <p><strong>Price:</strong> ${item.price ? item.price + ' ' + item.currency : 'N/A'}</p>
+                ${item.desired_date ? `<p><strong>Desired:</strong> ${item.desired_date}</p>` : ''}
+                <p>${escapeHtml(item.comment || '')}</p>
+                ${item.shops ? '<p><strong>Shops:</strong> ' + item.shops.map(s => s.url ? `<a href="${s.url}" target="_blank">${s.name}</a>` : s.name).join(', ') + '</p>' : ''}
+                <p><strong>Category:</strong> ${getCategoryName(item.category_id)}</p>
+                ${bookingText ? `<p>${bookingText}</p>` : ''}
+                <div class="item-actions">
+                    <button class="btn btn-primary btn-sm" onclick='editItem("${item.id}")'>Edit</button>
+                    ${!booking ? `<button class="btn btn-danger btn-sm" onclick='deleteItem("${item.id}")'>Delete</button>` : ''}
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function openAddItemModal() {
