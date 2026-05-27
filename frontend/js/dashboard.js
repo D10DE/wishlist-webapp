@@ -175,11 +175,13 @@ async function selectWishlist(id) {
         <div class="card">
             <h3>${escapeHtml(wishlist.title)}</h3>
             <p>${escapeHtml(wishlist.description || '')}</p>
+            ${wishlist.is_public ? `
             <div class="share-link">
                 <strong>Share link:</strong><br>
                 <input type="text" value="${shareUrl}" readonly style="width:100%;" id="share-link-input">
                 <button class="btn btn-sm" onclick="copyShareLink()">Copy</button>
             </div>
+            ` : ''}
             <button class="btn btn-sm btn-primary" onclick="editWishlist('${id}')">Edit</button>
             <button class="btn btn-sm btn-danger" onclick="deleteWishlist('${id}')">Delete</button>
         </div>
@@ -188,15 +190,12 @@ async function selectWishlist(id) {
             <form id="share-settings-form">
                 <div class="form-row">
                     <div class="form-group">
-                        <label><input type="checkbox" name="show_booked_details" ${share.show_booked_details ? 'checked' : ''}> Show booked details</label>
-                    </div>
-                    <div class="form-group">
-                        <label><input type="checkbox" name="allow_anonymous" ${share.allow_anonymous ? 'checked' : ''}> Allow anonymous</label>
+                        <label><input type="checkbox" name="allow_anonymous" ${share.allow_anonymous ? 'checked' : ''}> Allow anonymous to read the wishlist</label>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Max items per gifter</label>
-                    <input type="number" name="max_items_per_gifter" value="${share.max_items_per_gifter || ''}" min="1">
+                    <input type="number" name="max_items_per_gifter" value="${share.max_items_per_gifter || 1}" min="1">
                 </div>
                 <div class="form-group">
                     <label>Custom message</label>
@@ -222,7 +221,6 @@ async function selectWishlist(id) {
         e.preventDefault();
         const form = e.target;
         const payload = {
-            show_booked_details: form.show_booked_details.checked,
             allow_anonymous: form.allow_anonymous.checked,
             max_items_per_gifter: form.max_items_per_gifter.value ? parseInt(form.max_items_per_gifter.value) : null,
             custom_message: form.custom_message.value || null
@@ -325,6 +323,7 @@ async function viewSharedWishlist(uuid) {
                 <p>Price: ${item.price ? item.price + ' ' + item.currency : 'N/A'}</p>
                 ${item.shops ? '<p>Shops: ' + item.shops.map(s => s.url ? `<a href="${s.url}">${s.name}</a>` : s.name).join(', ') + '</p>' : ''}
                 ${bookingHtml}
+                <p>Category: ${item.category_name || 'None'}</p>
             </div>
         `;
     }).join('');
@@ -450,22 +449,33 @@ async function createWishlist() {
     openModal('wishlist-modal');
 }
 
-function editWishlist(id) {
-    // Using prompt for simplicity; could be replaced with modal in future
-    const newTitle = prompt('New title:');
-    if (newTitle === null) return;
-    const newDesc = prompt('New description:');
-    if (newDesc === null) return;
-    authFetch(`/api/wishlists/${id}`, {
+async function editWishlist(id) {
+    // Fetch current data
+    const res = await authFetch(`/api/wishlists/${id}`);
+    const w = await res.json();
+    document.getElementById('edit-wishlist-title').value = w.title || '';
+    document.getElementById('edit-wishlist-description').value = w.description || '';
+    document.getElementById('edit-wishlist-modal').dataset.wishlistId = id;
+    openModal('edit-wishlist-modal');
+}
+
+async function submitEditWishlist() {
+    const id = document.getElementById('edit-wishlist-modal').dataset.wishlistId;
+    const title = document.getElementById('edit-wishlist-title').value.trim();
+    const description = document.getElementById('edit-wishlist-description').value.trim();
+    if (!title) return showAlert('Title cannot be empty');
+    const res = await authFetch(`/api/wishlists/${id}`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ title: newTitle, description: newDesc })
-    }).then(res => {
-        if (res.ok) {
-            refreshWishlistListSidebar();
-            selectWishlist(id);
-        } else showAlert('Edit failed');
+        body: JSON.stringify({ title, description })
     });
+    if (res.ok) {
+        closeModal('edit-wishlist-modal');
+        await refreshWishlistListSidebar();
+        selectWishlist(id);
+    } else {
+        showAlert('Edit failed');
+    }
 }
 
 function deleteWishlist(id) {
@@ -514,9 +524,14 @@ async function loadItems(wishlistId) {
                 ${item.shops ? '<p><strong>Shops:</strong> ' + item.shops.map(s => s.url ? `<a href="${s.url}" target="_blank">${s.name}</a>` : s.name).join(', ') + '</p>' : ''}
                 <p><strong>Category:</strong> ${getCategoryName(item.category_id)}</p>
                 ${bookingText ? `<p>${bookingText}</p>` : ''}
-                <div class="item-actions">
-                    <button class="btn btn-primary btn-sm" onclick='editItem("${item.id}")'>Edit</button>
-                    ${!booking ? `<button class="btn btn-danger btn-sm" onclick='deleteItem("${item.id}")'>Delete</button>` : ''}
+                <div class="item-actions">     
+                    ${!booking || booking.status !== 'gifted' ?
+                          `
+                          <button class="btn btn-primary btn-sm" onclick='editItem("${item.id}")'>Edit</button>
+                          <button class="btn btn-danger btn-sm" onclick='deleteItem("${item.id}")'>Delete</button>
+                          `
+                        : ''
+                    }
                 </div>
             </div>
         `;

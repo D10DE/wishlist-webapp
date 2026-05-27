@@ -12,7 +12,6 @@ router = APIRouter(prefix="/api/wishlists/{wishlist_id}/share-settings", tags=["
 def _row_to_dict(row) -> dict:
     return {
         "wishlist_id": str(row["wishlist_id"]),
-        "show_booked_details": row["show_booked_details"],
         "restrict_to_contacts": row["restrict_to_contacts"],
         "max_items_per_gifter": row[ "max_items_per_gifter"],
         "allow_anonymous": row["allow_anonymous"],
@@ -46,8 +45,8 @@ async def update_share_settings(
     values = []
     idx = 1
 
-    for field in ("show_booked_details", "restrict_to_contacts",
-                  "max_items_per_gifter", "allow_anonymous", "custom_message"):
+    for field in ("restrict_to_contacts", "max_items_per_gifter", 
+                    "allow_anonymous", "custom_message"):
         val = getattr(data, field)
         if val is not None:
             fields.append(f"{field} = ${idx}")

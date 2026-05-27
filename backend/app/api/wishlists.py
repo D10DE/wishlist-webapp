@@ -97,6 +97,14 @@ async def delete_wishlist(
     wishlist_id: UUID,
     current_user: dict = Depends(get_current_user)
 ):
+    bookings_exist = await fetch_one(
+        "SELECT COUNT(*) as cnt FROM bookings WHERE wishlist_id = $1", wishlist_id
+    )
+    if bookings_exist and bookings_exist["cnt"] > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete wishlist with existing bookings. Please cancel all bookings first."
+        )
     result = await execute(
         "DELETE FROM wishlists WHERE id = $1 AND owner_id = $2",
         wishlist_id, current_user["id"]

@@ -25,7 +25,6 @@ class WishlistOut(BaseModel):
 
 # ---------- Share Settings ----------
 class ShareSettingsUpdate(BaseModel):
-    show_booked_details: Optional[bool] = None
     restrict_to_contacts: Optional[bool] = None
     max_items_per_gifter: Optional[int] = None
     allow_anonymous: Optional[bool] = None
@@ -33,7 +32,6 @@ class ShareSettingsUpdate(BaseModel):
 
 class ShareSettingsOut(BaseModel):
     wishlist_id: str
-    show_booked_details: bool
     restrict_to_contacts: bool
     max_items_per_gifter: Optional[int]
     allow_anonymous: bool

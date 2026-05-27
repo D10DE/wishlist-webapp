@@ -64,7 +64,22 @@
         </form>
     </div>
 </div>
-
+<!-- Edit Wishlist modal -->
+<div class="modal" id="edit-wishlist-modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('edit-wishlist-modal')">&times;</span>
+        <h3>Edit Wishlist</h3>
+        <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="edit-wishlist-title">
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea id="edit-wishlist-description" rows="3"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="submitEditWishlist()">Save</button>
+    </div>
+</div>
 <!-- Item add/edit modal -->
 <div class="modal" id="item-modal">
     <div class="modal-content">

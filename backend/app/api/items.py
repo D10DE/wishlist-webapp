@@ -190,15 +190,15 @@ async def delete_item(
     current_user: dict = Depends(get_current_user),
     owner_id: str = Depends(get_wishlist_owner) 
 ):
-    # Check if item has bookings
-    booked = await fetch_one(
-        "SELECT COUNT(*) as cnt FROM bookings WHERE item_id = $1",
+    # Check for gifted bookings only
+    gifted = await fetch_one(
+        "SELECT COUNT(*) as cnt FROM bookings WHERE item_id = $1 AND status = 'gifted'",
         item_id
     )
-    if booked and booked["cnt"] > 0:
+    if gifted and gifted["cnt"] > 0:
         raise HTTPException(
             status_code=409,
-            detail="Cannot delete item with existing bookings. Please cancel them first."
+            detail="Cannot delete item because it has already been gifted. Cancel the booking first."
         )
     result = await execute(
         "DELETE FROM items WHERE id = $1 AND wishlist_id = $2",
