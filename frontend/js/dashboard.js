@@ -262,6 +262,17 @@ async function viewSharedWishlist(uuid) {
         warningMsg = '<p style="color:red; font-weight:bold;">Please <a href="/app/login.html">log in</a> to book items.</p>';
     }
 
+    let anonCheckboxHtml = '';
+    if (token && data.share_settings.allow_anonymous) {
+        anonCheckboxHtml = `
+            <div class="form-group" style="margin-bottom:15px;">
+                <label>
+                    <input type="checkbox" id="book-anonymous-checkbox" checked> Book anonymously
+                </label>
+            </div>
+        `;
+    }
+
     const itemsHtml = data.items.map(item => {
         let bookingHtml = '';
         if (token) {
@@ -293,17 +304,20 @@ async function viewSharedWishlist(uuid) {
             <p>${escapeHtml(data.wishlist.description || '')}</p>
             ${data.share_settings.custom_message ? `<p><em>${escapeHtml(data.share_settings.custom_message)}</em></p>` : ''}
             ${warningMsg}
+            ${anonCheckboxHtml}
             <div class="item-grid">${itemsHtml}</div>
         </div>
     `;
 }
 
 async function bookItemShared(itemId) {
+    const anonCheckbox = document.getElementById('book-anonymous-checkbox');
+    const isAnonymous = anonCheckbox ? anonCheckbox.checked : false;  // if no checkbox (anonymous not allowed), send false
     if (!currentSharedId) return;
     const res = await authFetch(`/api/wishlists/${currentSharedId}/bookings`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ item_id: itemId, is_anonymous: true })
+        body: JSON.stringify({ item_id: itemId, is_anonymous: isAnonymous })
     });
     if (res.ok) {
         viewSharedWishlist(currentSharedId);

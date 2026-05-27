@@ -54,20 +54,26 @@ async def book_item(
     if existing_booking:
         raise HTTPException(status_code=409, detail="Item is already booked by someone else")
 
-    # Check max_items_per_gifter
+    # Follow share settings of the wishlist
     share = await fetch_one(
-        "SELECT max_items_per_gifter FROM share_settings WHERE wishlist_id = $1", wishlist_id
+        "SELECT allow_anonymous, max_items_per_gifter FROM share_settings WHERE wishlist_id = $1",
+        wishlist_id
     )
-    if share and share["max_items_per_gifter"] is not None:
+    if not share:
+        raise HTTPException(status_code=404, detail="Share settings not found")
+
+    # Check max_items_per_gifter
+    if share["max_items_per_gifter"] is not None:
         count = await fetch_one(
             "SELECT COUNT(*) as cnt FROM bookings WHERE wishlist_id = $1 AND gifter_user_id = $2",
             wishlist_id, gifter
         )
         if count["cnt"] >= share["max_items_per_gifter"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"You can only book up to {share['max_items_per_gifter']} different items in this list"
-            )
+            raise HTTPException(status_code=400, detail=f"You can only book up to {share['max_items_per_gifter']} different items")
+
+    # Enforce allow_anonymous
+    if not share["allow_anonymous"] and data.is_anonymous:
+        raise HTTPException(status_code=400, detail="Anonymous bookings are not allowed for this wishlist.")
 
     # Insert booking
     row = await fetch_one(
