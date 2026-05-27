@@ -32,6 +32,10 @@ let currentSharedId = null;
 let categories = [];
 let currentBookings = {};   // item_id -> { status, gifter_name, is_anonymous }
 let showGifterNames = false; // toggle state
+let cropper = null;
+let pendingImageFile = null;   // the file chosen by user, waiting for crop
+let processedImageBlob = null;        // the cropped + compressed blob
+let processedImageName = null;        // filename for the processed blob
 
 // ====================== SIDEBAR SHARED LIST HELPERS ======================
 // Fetch saved shared wishlists from server
@@ -541,6 +545,13 @@ async function loadItems(wishlistId) {
 function openAddItemModal() {
     document.getElementById('item-modal-title').textContent = 'Add Item';
     document.getElementById('item-form').reset();
+    processedImageBlob = null;
+    processedImageName = null;
+    pendingImageFile = null;
+    // Also clear any displayed file name
+    const label = document.querySelector('#item-form input[type="file"]').parentElement;
+    const span = label.querySelector('.file-name');
+    if (span) span.remove();
     document.getElementById('edit-item-id').value = '';
     document.getElementById('shops-container').innerHTML = '';
     addShopRow(); // start with one empty row
@@ -551,6 +562,16 @@ function openAddItemModal() {
 }
 
 async function editItem(itemId) {
+    // Clear any crop state from a previous session
+    processedImageBlob = null;
+    processedImageName = null;
+    pendingImageFile = null;
+    // Also clear any displayed file name
+    const label = document.querySelector('#item-form input[type="file"]').parentElement;
+    const span = label.querySelector('.file-name');
+    if (span) span.remove();
+    document.querySelector('#item-form input[type="file"]').value = '';
+    
     const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`);
     const item = await res.json();
     document.getElementById('item-modal-title').textContent = 'Edit Item';
@@ -623,7 +644,13 @@ document.getElementById('item-form').addEventListener('submit', async function(e
     formData.append('comment', form.comment.value);
     formData.append('shops', collectShops() || '');
     formData.append('category_id', form.category_id.value || '');
-    if (form.image.files[0]) {
+    if (processedImageBlob) {
+        formData.append('image', processedImageBlob, processedImageName);
+        // Clean up
+        processedImageBlob = null;
+        processedImageName = null;
+    } else if (form.image.files[0]) {
+        // Fallback (should not normally happen, kept for safety)
         formData.append('image', form.image.files[0]);
     }
     formData.append('remove_image', form.remove_image.checked);
@@ -643,6 +670,27 @@ document.getElementById('item-form').addEventListener('submit', async function(e
         const err = await res.json();
         showAlert('Error: ' + (err.detail || 'Unknown'));
     }
+});
+
+document.getElementById('item-form').querySelector('input[type="file"]').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    pendingImageFile = file;
+    // Show crop modal
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const cropImage = document.getElementById('crop-image');
+        cropImage.src = ev.target.result;
+        // Destroy previous Cropper instance if exists
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(cropImage, {
+            aspectRatio: 1,          // force square
+            viewMode: 2,
+            autoCropArea: 1,
+        });
+        openModal('crop-modal');
+    };
+    reader.readAsDataURL(file);
 });
 
 function deleteItem(itemId) {
@@ -747,6 +795,41 @@ function copyShareLink() {
     showAlert('Link copied!');
 }
 
+// ====================== MODAL HELPERS (extended) ======================
+function applyCrop() {
+    if (!cropper) return;
+    const croppedCanvas = cropper.getCroppedCanvas({
+        maxWidth: 3840,
+        maxHeight: 3840,
+    });
+    croppedCanvas.toBlob(async (blob) => {
+        try {
+            processedImageBlob = await processImage(blob);
+            processedImageName = pendingImageFile.name.replace(/\.[^/.]+$/, "") + ".jpg";
+            closeModal('crop-modal');
+            // Show a visual hint near the file input
+            const fileInput = document.querySelector('#item-form input[type="file"]');
+            const label = fileInput.parentElement;
+            label.querySelector('.file-name')?.remove();
+            const span = document.createElement('span');
+            span.className = 'file-name';
+            span.textContent = ` Cropped: ${processedImageName}`;
+            span.style.fontSize = '0.9em';
+            label.appendChild(span);
+        } catch (err) {
+            showAlert('Image processing failed.');
+        }
+    }, 'image/jpeg', 0.9);
+}
+
+function cancelCrop() {
+    closeModal('crop-modal');
+    document.querySelector('#item-form input[type="file"]').value = '';
+    pendingImageFile = null;
+    processedImageBlob = null;
+    processedImageName = null;
+}
+
 // ====================== LOGOUT ======================
 document.getElementById('logout-btn').addEventListener('click', () => {
     localStorage.removeItem('token');
@@ -789,3 +872,4 @@ function initApp() {
 }
 
 initApp();
+

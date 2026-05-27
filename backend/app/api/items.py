@@ -190,6 +190,12 @@ async def delete_item(
     current_user: dict = Depends(get_current_user),
     owner_id: str = Depends(get_wishlist_owner) 
 ):
+    item = await fetch_one(
+        "SELECT image_filename FROM items WHERE id = $1 AND wishlist_id = $2",
+        item_id, wishlist_id
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
     # Check for gifted bookings only
     gifted = await fetch_one(
         "SELECT COUNT(*) as cnt FROM bookings WHERE item_id = $1 AND status = 'gifted'",
@@ -200,6 +206,12 @@ async def delete_item(
             status_code=409,
             detail="Cannot delete item because it has already been gifted. Cancel the booking first."
         )
+    # Delete the physical file if exists
+    if item["image_filename"]:
+        file_path = UPLOAD_DIR / item["image_filename"]
+        if file_path.exists():
+            file_path.unlink()
+    
     result = await execute(
         "DELETE FROM items WHERE id = $1 AND wishlist_id = $2",
         item_id, wishlist_id

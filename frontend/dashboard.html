@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wishlist Dashboard</title>
     <link rel="stylesheet" href="/app/css/dashboard.css">
+    <link rel="stylesheet" href="/app/css/cropper.css">
 </head>
 <body>
 <div class="app">
@@ -183,6 +184,24 @@
     </div>
 </div>
 
+<!-- Crop modal (for image upload) -->
+<div class="modal" id="crop-modal">
+    <div class="modal-content" style="max-width: 90vw; max-height: 90vh;">
+        <span class="close" onclick="closeModal('crop-modal')">&times;</span>
+        <h3>Crop Image (1:1)</h3>
+        <div style="max-height: 70vh; overflow: hidden;">
+            <img id="crop-image" style="max-width: 100%; display: block;">
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn btn-sm" onclick="cancelCrop()">Cancel</button>
+            <button class="btn btn-primary btn-sm" onclick="applyCrop()">Crop & Use</button>
+        </div>
+    </div>
+</div>
+
+<script src="/app/js/cropper.js" defer></script>
+<script src="/app/js/processImage.js"></script>
 <script src="/app/js/dashboard.js" defer></script>
+
 </body>
 </html>
