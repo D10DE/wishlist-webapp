@@ -566,11 +566,14 @@ async function editItem(itemId) {
     processedImageBlob = null;
     processedImageName = null;
     pendingImageFile = null;
-    // Also clear any displayed file name
-    const label = document.querySelector('#item-form input[type="file"]').parentElement;
+    const fileInput = document.querySelector('#item-form input[type="file"]');
+    fileInput.value = '';
+    const label = fileInput.parentElement;
     const span = label.querySelector('.file-name');
     if (span) span.remove();
-    document.querySelector('#item-form input[type="file"]').value = '';
+    // Uncheck the "remove current picture" checkbox
+    const removeCheckbox = document.querySelector('#item-form input[name="remove_image"]');
+    if (removeCheckbox) removeCheckbox.checked = false;
     
     const res = await authFetch(`/api/wishlists/${currentWishlistId}/items/${itemId}`);
     const item = await res.json();

@@ -116,6 +116,7 @@ async def update_item(
     category_id: Optional[UUID] = Form(None),
     shops: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
+    remove_image: bool = Form(False),          
     current_user: dict = Depends(get_current_user),
     owner_id: str = Depends(get_wishlist_owner) 
 ):
@@ -130,8 +131,15 @@ async def update_item(
 
     # Handle image upload
     image_filename = existing["image_filename"]
-    if image:
-        # Delete old file if exists
+    if remove_image and not image:
+    # Delete old file, set to None
+        if image_filename:
+            old_path = UPLOAD_DIR / image_filename
+            if old_path.exists():
+                old_path.unlink()
+        image_filename = None
+    elif image:
+        # A new image was uploaded – process it and replace the old one
         if image_filename:
             old_path = UPLOAD_DIR / image_filename
             if old_path.exists():
@@ -143,7 +151,6 @@ async def update_item(
         with open(file_path, "wb") as f:
             f.write(content)
         image_filename = unique_name
-
     # Parse shops
     shops_list = existing["shops"]
     if shops is not None:
@@ -172,7 +179,7 @@ async def update_item(
                comment = COALESCE($8, comment),
                category_id = COALESCE($9, category_id),
                shops = COALESCE($10::jsonb, shops),
-               image_filename = COALESCE($11, image_filename)
+               image_filename = $11
            WHERE id = $1 AND wishlist_id = $2
            RETURNING *""",
         item_id, wishlist_id,
